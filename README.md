@@ -18,6 +18,17 @@ afterwards:
 It runs the real Docker engine, so `docker`, `docker compose` and tools
 that talk to the Docker socket work unchanged.
 
+## Install
+
+On an Apple Silicon Mac with macOS 14 or later:
+
+```sh
+brew install barelyvm/tap/barely
+barely setup
+```
+
+barely needs the docker CLI. If you don't have one, `brew install docker docker-compose docker-buildx`.
+
 ## Install from source
 
 Requirements: an Apple Silicon Mac on macOS 14+, Xcode command line tools,
