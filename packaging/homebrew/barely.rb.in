@@ -8,9 +8,7 @@ class Barely < Formula
   # barely itself is Apache-2.0; the guest image carries a Linux kernel.
   license all_of: ["Apache-2.0", "GPL-2.0-only"]
 
-  # No dependency on the docker CLI: many people already have one that
-  # Homebrew can't see (Docker Desktop's), and depending on Homebrew's would
-  # install a second. The caveats and `barely setup` say how to get one.
+  # The docker CLI is not a dependency: Docker Desktop installs its own.
   depends_on arch: :arm64
   depends_on macos: :sonoma
 
@@ -19,9 +17,7 @@ class Barely < Formula
     libexec.install Dir["libexec/*"]
     (share/"barely").install "share/barely/guest"
 
-    # Only barelyvm uses Apple's Hypervisor framework. An ad-hoc signature
-    # made here, on the Mac it runs on, carries the entitlement it needs; no
-    # Apple developer account is involved.
+    # barelyvm needs the hypervisor entitlement; an ad-hoc signature carries it.
     system "codesign", "--sign", "-", "--force", libexec/"libkrun.1.dylib"
     system "codesign", "--sign", "-", "--force",
            "--entitlements", libexec/"barely.entitlements", libexec/"barelyvm"
