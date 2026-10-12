@@ -1,5 +1,5 @@
 BARELY_HOME ?= $(HOME)/.barely
-.PHONY: kernel kernel-config kernel-clean libkrun barely barelyvm agent guest man
+.PHONY: kernel kernel-config kernel-clean libkrun barely barelyvm agent guest guest-image man release formula push-release push-formula
 
 OUT := out/bin
 LIBCLANG := $(shell xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib
@@ -16,6 +16,18 @@ GUEST_OUT := out/guest/$(GUEST_VERSION)
 KERNEL_VERSION := $(shell . kernel/version.env && echo $$KERNEL_VERSION)
 AGENT_PROTOCOL := 3
 FSEVENT_ABI := 1
+
+# Release. VERSION is what `barely version` prints and what a release is
+# named: the nearest tag without its "v", or the commit when there is none.
+VERSION ?= $(patsubst v%,%,$(shell git describe --tags --always --dirty))
+DIST := dist
+RELEASE := barely-$(VERSION)-darwin-arm64
+GITHUB_REPO := barelyvm/barely
+# A local clone of github.com/barelyvm/homebrew-tap, for push-formula.
+TAP_DIR ?= ../homebrew-tap
+# Where the formula downloads the tarball from. The default points at the
+# local build so the formula can be tried before anything is uploaded.
+RELEASE_URL ?= file://$(CURDIR)/$(DIST)/$(RELEASE).tar.gz
 
 kernel kernel-config kernel-clean:
 	$(MAKE) -C kernel $@
@@ -45,7 +57,7 @@ endif
 # barely needs no signing: only barelyvm needs the hypervisor entitlement.
 barely:
 	mkdir -p $(OUT)
-	go build -o $(OUT)/barely ./cmd/barely
+	go build -ldflags "-X main.version=$(VERSION)" -o $(OUT)/barely ./cmd/barely
 
 # barelyvm runs the VM; libkrun.1.dylib is found next to it (@executable_path).
 barelyvm:
@@ -68,8 +80,8 @@ agent:
 		-o out/guest-build/agent/barely-agent ./cmd/barely-agent
 
 # Builds the guest image (kernel, Alpine root.img, initrd.img carrying
-# barely-agent as /init, manifest.json) and installs it to ~/.barely/guest/.
-guest: kernel agent
+# barely-agent as /init, manifest.json) into out/guest/<version>/.
+guest-image: kernel agent
 	docker build --platform linux/arm64 -q -t $(GUEST_BUILD_IMAGE) guest
 	mkdir -p $(GUEST_OUT)
 	cp kernel/out/Image $(GUEST_OUT)/Image
@@ -78,7 +90,70 @@ guest: kernel agent
 		-v $(CURDIR)/out/guest-build:/build \
 		-v $(CURDIR)/$(GUEST_OUT):/out \
 		$(GUEST_BUILD_IMAGE) sh /guest/build.sh "$(GUEST_VERSION)" "$(KERNEL_VERSION)" "$(AGENT_PROTOCOL)" "$(FSEVENT_ABI)"
+
+# Builds the guest image and installs it to ~/.barely/guest/.
+guest: guest-image
 	mkdir -p $(BARELY_HOME)/guest
 	rm -rf $(BARELY_HOME)/guest/$(GUEST_VERSION)
 	cp -R $(GUEST_OUT) $(BARELY_HOME)/guest/$(GUEST_VERSION)
 	@echo "guest $(GUEST_VERSION) installed to $(BARELY_HOME)/guest/$(GUEST_VERSION)"
+
+# Builds everything and packs it as dist/barely-<version>-darwin-arm64.tar.gz
+# in the layout `barely setup` looks for beside itself: bin/barely,
+# libexec/ (barelyvm, libkrun, the entitlements to sign it with) and
+# share/barely/guest/<guest version>/. Local only: nothing is installed on
+# this Mac and nothing is uploaded. The files are packed straight from where
+# they were built: each -s moves one source path to its place in the archive.
+# Give the version: make release VERSION=0.1.0
+release: libkrun barely barelyvm guest-image
+	mkdir -p $(DIST)
+	tar -czf $(DIST)/$(RELEASE).tar.gz \
+		-s '|^$(OUT)/barely$$|$(RELEASE)/bin/barely|' \
+		-s '|^$(OUT)/|$(RELEASE)/libexec/|' \
+		-s '|^barely.entitlements$$|$(RELEASE)/libexec/barely.entitlements|' \
+		-s '|^$(GUEST_OUT)|$(RELEASE)/share/barely/guest/$(GUEST_VERSION)|' \
+		-s '|^LICENSE$$|$(RELEASE)/LICENSE|' \
+		-s '|^README.md$$|$(RELEASE)/README.md|' \
+		$(OUT)/barely $(OUT)/barelyvm $(OUT)/libkrun.1.dylib barely.entitlements \
+		$(GUEST_OUT) LICENSE README.md
+	cd $(DIST) && shasum -a 256 $(RELEASE).tar.gz > $(RELEASE).tar.gz.sha256
+	@echo "release: $(DIST)/$(RELEASE).tar.gz"
+
+# Writes dist/barely.rb, the Homebrew formula for the tarball `make release`
+# built with the same VERSION. Local only. RELEASE_URL is where the formula
+# will download the tarball from.
+formula:
+	test -f $(DIST)/$(RELEASE).tar.gz.sha256
+	sed -e 's|@URL@|$(RELEASE_URL)|' -e 's|@VERSION@|$(VERSION)|' \
+		-e "s|@SHA256@|$$(cut -d' ' -f1 $(DIST)/$(RELEASE).tar.gz.sha256)|" \
+		packaging/homebrew/barely.rb.in > $(DIST)/barely.rb
+	@echo "formula: $(DIST)/barely.rb"
+
+# Uploads the tarball `make release` built with the same VERSION as a draft
+# GitHub release v<version>, then rewrites dist/barely.rb to download from
+# it. This is the only target that uploads. The draft is not public: publish
+# it on GitHub, which is also what creates the tag (at the pushed main) and
+# makes the formula's URL work.
+push-release:
+	test -f $(DIST)/$(RELEASE).tar.gz.sha256
+	sed -e 's|@VERSION@|$(VERSION)|g' -e 's|@KERNEL@|$(KERNEL_VERSION)|g' \
+		packaging/release-notes.md.in > $(DIST)/release-notes.md
+	gh release create v$(VERSION) --repo $(GITHUB_REPO) --target main --draft \
+		--title "barely $(VERSION)" --notes-file $(DIST)/release-notes.md --generate-notes \
+		$(DIST)/$(RELEASE).tar.gz $(DIST)/$(RELEASE).tar.gz.sha256
+	$(MAKE) formula VERSION=$(VERSION) \
+		RELEASE_URL=https://github.com/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(RELEASE).tar.gz
+
+# Commits dist/barely.rb to the Homebrew tap and pushes it, which is what makes
+# `brew install barelyvm/tap/barely` install this version. A separate step from
+# push-release because it must come after the draft is published: until then
+# the formula's URL does not exist, and a pushed formula would break installs.
+push-formula:
+	@test -d $(TAP_DIR)/.git || { echo "no clone of the tap at $(TAP_DIR); set TAP_DIR"; exit 1; }
+	@grep -q 'releases/download/v$(VERSION)/' $(DIST)/barely.rb || { echo "$(DIST)/barely.rb is not for the v$(VERSION) GitHub release; run make push-release VERSION=$(VERSION)"; exit 1; }
+	@test "$$(gh release view v$(VERSION) --repo $(GITHUB_REPO) --json isDraft --jq .isDraft)" = false || { echo "release v$(VERSION) is still a draft (or missing); publish it on GitHub first"; exit 1; }
+	mkdir -p $(TAP_DIR)/Formula
+	cp $(DIST)/barely.rb $(TAP_DIR)/Formula/barely.rb
+	git -C $(TAP_DIR) add Formula/barely.rb
+	git -C $(TAP_DIR) commit -m "barely $(VERSION)"
+	git -C $(TAP_DIR) push origin HEAD
