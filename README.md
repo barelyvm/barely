@@ -4,9 +4,9 @@ barely is an open source Docker host VM with elastic memory and storage
 management.
 
 Docker on a Mac needs a Linux VM, and that VM usually holds a fixed share
-of the machine whether containers need it or not. On a 16 GB laptop with a
-512 GB disk that share is hard to spare. barely's VM takes memory and disk
-space as containers use them and hands them back to macOS afterwards:
+of the machine whether containers need it or not. barely's VM takes memory
+and disk space as containers use them and hands them back to macOS
+afterwards:
 
 - **Memory**: the VM grows up to a cap (half the Mac's RAM by default) and
   shrinks again when a build or container finishes. With nothing running
@@ -130,8 +130,8 @@ also gives memory back when idle.
 - Apple Silicon and macOS 14+ only. No Kubernetes.
 - amd64 images are not supported, only arm64.
 - A `touch` that only changes a file's timestamp raises no event in containers. Saves and edits do.
-- Launching Docker Desktop makes `desktop-linux` the current Docker context and can retake `/var/run/docker.sock`; `barely doctor` shows who owns them, `docker context use barely` switches back.
-- Images, containers and volumes are separate from Docker Desktop's.
+- Launching Docker Desktop makes `desktop-linux` the current Docker context and can retake `/var/run/docker.sock`, unless that is turned off in its settings. `barely doctor` shows who owns them; `docker context use barely` switches back.
+- Images, containers and volumes live in `~/.barely/data.img`, separate from Docker Desktop's.
 - SSH agent forwarding into builds, IPv6 inside the VM, and reaching container IPs directly from the Mac aren't implemented.
 - A long-lived process that keeps its own memory (for example Node after a large build) holds the VM's footprint up until the process releases it.
 
