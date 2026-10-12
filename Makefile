@@ -1,5 +1,5 @@
 BARELY_HOME ?= $(HOME)/.barely
-.PHONY: kernel kernel-config kernel-clean libkrun barely barelyvm agent guest guest-image man release formula push-release push-formula
+.PHONY: kernel kernel-config kernel-clean libkrun barely barelyvm agent guest guest-image man release pack formula push-release push-formula
 
 OUT := out/bin
 LIBCLANG := $(shell xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib
@@ -23,6 +23,9 @@ VERSION ?= $(patsubst v%,%,$(shell git describe --tags --always --dirty))
 DIST := dist
 RELEASE := barely-$(VERSION)-darwin-arm64
 GITHUB_REPO := barelyvm/barely
+# The branch a release is built from.
+RELEASE_SOURCE ?= https://github.com/$(GITHUB_REPO).git
+RELEASE_REF ?= main
 # A local clone of github.com/barelyvm/homebrew-tap, for push-formula.
 TAP_DIR ?= ../homebrew-tap
 # Where the formula downloads the tarball from. The default points at the
@@ -98,14 +101,25 @@ guest: guest-image
 	cp -R $(GUEST_OUT) $(BARELY_HOME)/guest/$(GUEST_VERSION)
 	@echo "guest $(GUEST_VERSION) installed to $(BARELY_HOME)/guest/$(GUEST_VERSION)"
 
-# Builds everything and packs it as dist/barely-<version>-darwin-arm64.tar.gz
-# in the layout `barely setup` looks for beside itself: bin/barely,
-# libexec/ (barelyvm, libkrun, the entitlements to sign it with) and
-# share/barely/guest/<guest version>/. Local only: nothing is installed on
-# this Mac and nothing is uploaded. The files are packed straight from where
-# they were built: each -s moves one source path to its place in the archive.
-# Give the version: make release VERSION=0.1.0
-release: libkrun barely barelyvm guest-image
+# Builds dist/barely-<version>-darwin-arm64.tar.gz from a fresh clone of
+# RELEASE_REF, kept in dist/src/<commit>. Uploads nothing.
+# Usage: make release VERSION=0.1.0
+release:
+	@test "$(origin VERSION)" = "command line" || { echo "give the version: make release VERSION=0.1.0"; exit 1; }
+	mkdir -p $(DIST)/src
+	commit=$$(git ls-remote $(RELEASE_SOURCE) refs/heads/$(RELEASE_REF) | cut -f1) && test -n "$$commit" && \
+	src=$(CURDIR)/$(DIST)/src/$$commit && \
+	{ test -d $$src || git clone -q --depth 1 --branch $(RELEASE_REF) $(RELEASE_SOURCE) $$src; } && \
+	test "$$(git -C $$src rev-parse HEAD)" = "$$commit" && \
+	test -z "$$(git -C $$src status --porcelain)" && \
+	$(MAKE) -C $$src pack VERSION=$(VERSION) DIST=$(CURDIR)/$(DIST) && \
+	echo $$commit > $(DIST)/$(RELEASE).commit
+	@echo "release: $(DIST)/$(RELEASE).tar.gz, built from $$(cat $(DIST)/$(RELEASE).commit)"
+
+# Builds this folder and packs it into $(DIST): bin/barely, libexec/ (barelyvm,
+# libkrun, entitlements) and share/barely/guest/<guest version>/, the layout
+# `barely setup` looks for. Each -s places one built file in the archive.
+pack: libkrun barely barelyvm guest-image
 	mkdir -p $(DIST)
 	tar -czf $(DIST)/$(RELEASE).tar.gz \
 		-s '|^$(OUT)/barely$$|$(RELEASE)/bin/barely|' \
@@ -117,7 +131,6 @@ release: libkrun barely barelyvm guest-image
 		$(OUT)/barely $(OUT)/barelyvm $(OUT)/libkrun.1.dylib barely.entitlements \
 		$(GUEST_OUT) LICENSE README.md
 	cd $(DIST) && shasum -a 256 $(RELEASE).tar.gz > $(RELEASE).tar.gz.sha256
-	@echo "release: $(DIST)/$(RELEASE).tar.gz"
 
 # Writes dist/barely.rb, the Homebrew formula for the tarball `make release`
 # built with the same VERSION. Local only. RELEASE_URL is where the formula
@@ -131,14 +144,14 @@ formula:
 
 # Uploads the tarball `make release` built with the same VERSION as a draft
 # GitHub release v<version>, then rewrites dist/barely.rb to download from
-# it. This is the only target that uploads. The draft is not public: publish
-# it on GitHub, which is also what creates the tag (at the pushed main) and
-# makes the formula's URL work.
+# it. Publishing the draft on GitHub creates the tag, on the commit the
+# tarball was built from.
 push-release:
 	test -f $(DIST)/$(RELEASE).tar.gz.sha256
+	test -f $(DIST)/$(RELEASE).commit
 	sed -e 's|@VERSION@|$(VERSION)|g' -e 's|@KERNEL@|$(KERNEL_VERSION)|g' \
 		packaging/release-notes.md.in > $(DIST)/release-notes.md
-	gh release create v$(VERSION) --repo $(GITHUB_REPO) --target main --draft \
+	gh release create v$(VERSION) --repo $(GITHUB_REPO) --target $$(cat $(DIST)/$(RELEASE).commit) --draft \
 		--title "barely $(VERSION)" --notes-file $(DIST)/release-notes.md --generate-notes \
 		$(DIST)/$(RELEASE).tar.gz $(DIST)/$(RELEASE).tar.gz.sha256
 	$(MAKE) formula VERSION=$(VERSION) \
