@@ -86,7 +86,8 @@ func runRestart(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := controlPost(paths, "/restart"); err != nil {
+	// /restart answers once the guest has shut down and booted again.
+	if err := controlPostWith(controlHTTPNoTimeout(paths), "/restart"); err != nil {
 		return err
 	}
 	fmt.Println("restarted")
