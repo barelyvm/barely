@@ -91,16 +91,20 @@ type Server struct {
 	// serving, not when the current VM booted, so status uptime is the host
 	// process's and survives "barely restart". idleSince is zero while
 	// anything is busy; checkIdle starts the clock.
-	mu        sync.Mutex
-	booting   bool
-	exiting   bool // set by /stop and idle shutdown; ensureVM boots nothing from then on
-	cfg       vmtypes.Config
-	vm        *vmproc.Process
-	ctl       *control.Client
-	crashes   []time.Time // unexpected VM process exits, for crash-loop detection
-	startedAt time.Time
-	idleSince time.Time
-	cancel    context.CancelFunc
+	mu      sync.Mutex
+	booting bool
+	exiting bool // set by /stop and idle shutdown; ensureVM boots nothing from then on
+	cfg     vmtypes.Config
+	vm      *vmproc.Process
+	ctl     *control.Client
+	crashes []time.Time // failed boots and unexpected VM process exits, for crash-loop detection
+	// lastBootFailure is the guest's own reason for the latest failed boot,
+	// repeated in the crash-loop error: the docker CLI opens several
+	// connections at once, and the one it reports may be a later refusal.
+	lastBootFailure string
+	startedAt       time.Time
+	idleSince       time.Time
+	cancel          context.CancelFunc
 
 	shellExitsMu sync.Mutex
 	shellExits   map[int]<-chan int
@@ -340,11 +344,14 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 		}
 	}
 	// Crash-loop guard: refuse to boot again until old crashes age out of
-	// crashLoopWindow, so a VM that keeps dying once booted doesn't spin for
-	// as long as clients keep reconnecting. A VM that exits before hello is
-	// not counted: watch only starts after a successful boot.
+	// crashLoopWindow, so a VM that keeps dying, during boot or after it,
+	// doesn't spin for as long as clients keep reconnecting.
 	if n := s.recentCrashes(); n >= crashLoopCount {
+		reason := s.lastBootFailure
 		s.mu.Unlock()
+		if reason != "" {
+			return nil, fmt.Errorf("serve: the guest failed to boot: %s", reason)
+		}
 		return nil, fmt.Errorf("serve: VM process crashed %d times in the last %s, not retrying automatically; see %s", n, crashLoopWindow, s.paths.ConsoleLog())
 	}
 	s.booting = true
@@ -404,7 +411,7 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	for i, p := range cfg.Shares {
 		shares[i] = vmtypes.Share{HostPath: p, Tag: fmt.Sprintf("share%d", i)}
 	}
-	args := guestargs.Args{Shares: shares, DockerSockAliases: []string{s.paths.DockerSock()}}
+	args := guestargs.Args{Shares: shares, DockerSockAliases: []string{s.paths.DockerSock()}, DataImage: s.paths.DataImage()}
 
 	if err := os.MkdirAll(s.paths.RunDir(), 0o700); err != nil {
 		return nil, nil, err
@@ -485,9 +492,15 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	case r := <-helloCh:
 		if r.err != nil {
 			vm.Stop(shutdownGrace, shutdownKill)
+			if reason := s.bootFailed(bootStart); reason != "" {
+				return nil, nil, fmt.Errorf("serve: the guest failed to boot: %s", reason)
+			}
 			return nil, nil, fmt.Errorf("serve: %w", r.err)
 		}
 		ok = true
+		s.mu.Lock()
+		s.lastBootFailure = ""
+		s.mu.Unlock()
 		log.Printf("serve: boot: +%s hello answered (kernel boot + agent startup)", time.Since(bootStart).Round(time.Millisecond))
 		go s.logDockerdReady(r.ctl, bootStart)
 		// The reported peak is per boot, so drop the previous VM's samples.
@@ -501,6 +514,9 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 			}
 		}()
 		exitErr, _ := vm.Wait()
+		if reason := s.bootFailed(bootStart); reason != "" {
+			return nil, nil, fmt.Errorf("serve: the guest failed to boot: %s", reason)
+		}
 		return nil, nil, fmt.Errorf("serve: VM process exited during boot (%v); last lines of %s:\n%s", exitErr, s.paths.VMLog(), tailLines(s.paths.VMLog(), 20))
 	}
 }
@@ -521,6 +537,46 @@ func (s *Server) logDockerdReady(ctl *control.Client, bootStart time.Time) {
 
 // tailLines returns up to the last n lines of path, for putting the VM
 // process's own last words into an error.
+// bootFailed counts a boot that never reached hello toward the crash-loop
+// guard and returns the guest's own reason for it, empty if it logged none.
+func (s *Server) bootFailed(bootStart time.Time) string {
+	reason := guestBootFailure(s.paths.ConsoleLog(), bootStart)
+	s.mu.Lock()
+	s.crashes = append(s.crashes, time.Now())
+	s.lastBootFailure = reason
+	s.mu.Unlock()
+	return reason
+}
+
+// guestBootFailure returns the reason the guest's agent logged for failing to
+// boot; empty if it logged none. The agent writes that line and powers off
+// (cmd/barely-agent, bootFailedPrefix), which is all a docker client would
+// otherwise learn.
+func guestBootFailure(consolePath string, bootStart time.Time) string {
+	const marker = "barely-agent: bootstrap: "
+	f, err := os.Open(consolePath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	// libkrun starts the console log afresh on every boot. One not written
+	// since this boot began belongs to an earlier boot.
+	if fi, err := f.Stat(); err != nil || fi.ModTime().Before(bootStart) {
+		return ""
+	}
+	b, err := io.ReadAll(io.LimitReader(f, 1<<20))
+	if err != nil {
+		return ""
+	}
+	reason := ""
+	for _, line := range strings.Split(string(b), "\n") {
+		if i := strings.Index(line, marker); i >= 0 {
+			reason = strings.TrimSpace(line[i+len(marker):])
+		}
+	}
+	return reason
+}
+
 func tailLines(path string, n int) string {
 	f, err := os.Open(path)
 	if err != nil {

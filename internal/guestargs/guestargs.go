@@ -21,6 +21,7 @@ import (
 const (
 	shareParam = "barely.share="
 	sockParam  = "barely.docksock="
+	dataParam  = "barely.dataimg="
 )
 
 // Args is the boot-time configuration the host passes through the kernel
@@ -34,6 +35,9 @@ type Args struct {
 	// file seen through virtio-fs, which Linux can't connect to, so the
 	// agent bind-mounts dockerd's socket over it in the guest's view.
 	DockerSockAliases []string
+	// DataImage is the Mac-side path of the data disk, so the agent can name
+	// the file when it refuses to format a damaged one.
+	DataImage string
 }
 
 // Encode returns the parameters to append to the kernel command line. Paths
@@ -46,6 +50,9 @@ func (a Args) Encode() string {
 	for _, p := range a.DockerSockAliases {
 		words = append(words, sockParam+url.PathEscape(p))
 	}
+	if a.DataImage != "" {
+		words = append(words, dataParam+url.PathEscape(a.DataImage))
+	}
 	return strings.Join(words, " ")
 }
 
@@ -55,6 +62,10 @@ func Parse(cmdline string) Args {
 	var a Args
 	for _, w := range strings.Fields(cmdline) {
 		switch {
+		case strings.HasPrefix(w, dataParam):
+			if p, err := url.PathUnescape(strings.TrimPrefix(w, dataParam)); err == nil {
+				a.DataImage = p
+			}
 		case strings.HasPrefix(w, sockParam):
 			if p, err := url.PathUnescape(strings.TrimPrefix(w, sockParam)); err == nil {
 				a.DockerSockAliases = append(a.DockerSockAliases, p)

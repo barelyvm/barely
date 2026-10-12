@@ -21,6 +21,11 @@ import (
 // set at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
+// bootFailedPrefix starts the console line that says why the guest could not
+// boot. internal/serve looks for it (with the logger's "barely-agent: " in
+// front) to tell the docker client the reason.
+const bootFailedPrefix = "bootstrap: "
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("barely-agent: ")
@@ -41,7 +46,12 @@ func main() {
 		go reclaimLoop()
 		go func() {
 			if err := bootstrap(); err != nil {
-				log.Fatalf("bootstrap: %v", err)
+				// Power off rather than exit: PID 1 exiting panics the kernel
+				// and leaves the VM hung, while a powered-off guest ends the
+				// VM process at once and the host reports this line
+				// (bootFailedPrefix is how it finds it).
+				log.Printf(bootFailedPrefix+"%v", err)
+				powerOff()
 			}
 		}()
 	}

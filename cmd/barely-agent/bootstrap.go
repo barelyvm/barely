@@ -206,7 +206,11 @@ func mountDataDisk() error {
 		return fmt.Errorf("mount: %v; reading %s: %w", err, dataDisk, probeErr)
 	}
 	if !blank {
-		return fmt.Errorf("mount %s: %w; the disk holds data, so it was not formatted. To start over with an empty disk, run `barely stop` and delete data.img in barely's state directory on the Mac", dataDisk, err)
+		startOver := "barely stop, then delete barely's data.img on the Mac"
+		if args, argsErr := bootArgs(); argsErr == nil && args.DataImage != "" {
+			startOver = "barely stop && rm " + args.DataImage
+		}
+		return fmt.Errorf("mount %s: %w. The disk holds data, so it was not formatted. To start over with an empty disk: %s", dataDisk, err, startOver)
 	}
 	// -E nodiscard: skip mke2fs's whole-device discard pass. No discard at
 	// all until the explicit, lazy fstrim.
