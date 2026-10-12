@@ -184,6 +184,9 @@ func runSetup(args []string) error {
 	if err != nil {
 		return fmt.Errorf("barely setup: no usable guest image (%v); a release ships one, or build it with `make guest`", err)
 	}
+	if err := img.Verify(); err != nil {
+		return fmt.Errorf("barely setup: %v; rebuild it with `make guest`", err)
+	}
 	logLine("done", "guest image", img.Manifest.Version)
 
 	if err := setupCaps(ui, flags, paths); err != nil {

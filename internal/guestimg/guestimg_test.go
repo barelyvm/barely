@@ -61,3 +61,27 @@ func TestOpenRejectsOldGuest(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestVerify pins what setup relies on to refuse a damaged guest image: files
+// that match the manifest's checksums pass, and one that has changed since
+// fails with an error naming it.
+func TestVerify(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Image")
+	if err := os.WriteFile(path, []byte("kernel"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	img := Image{Dir: dir}
+	// sha256 of "kernel".
+	img.Manifest.SHA256 = map[string]string{"Image": "6923dd1bc0460082c5d55a831908c24a282860b7f1cd6c2b79cf1bc8857c639c"}
+	if err := img.Verify(); err != nil {
+		t.Fatalf("intact image: %v", err)
+	}
+
+	if err := os.WriteFile(path, []byte("kernal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := img.Verify(); err == nil || !strings.Contains(err.Error(), "Image") {
+		t.Fatalf("got %v, want a checksum error naming Image", err)
+	}
+}

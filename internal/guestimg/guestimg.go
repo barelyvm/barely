@@ -11,8 +11,11 @@
 package guestimg
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -93,4 +96,27 @@ func readManifest(dir string) (vmtypes.GuestManifest, error) {
 		return vmtypes.GuestManifest{}, fmt.Errorf("guestimg: %s: bad manifest.json: %w", dir, err)
 	}
 	return m, nil
+}
+
+// Verify checks each file the manifest lists against its recorded SHA-256, so
+// a truncated or damaged image is caught when it is installed rather than as
+// a guest that won't boot. Setup runs it; a boot does not, because hashing
+// the image would be added to every cold start.
+func (i Image) Verify() error {
+	for name, want := range i.Manifest.SHA256 {
+		f, err := os.Open(filepath.Join(i.Dir, name))
+		if err != nil {
+			return fmt.Errorf("guestimg: %w", err)
+		}
+		h := sha256.New()
+		_, err = io.Copy(h, f)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("guestimg: reading %s: %w", name, err)
+		}
+		if got := hex.EncodeToString(h.Sum(nil)); got != want {
+			return fmt.Errorf("guestimg: %s in %s is damaged (sha256 %s, manifest says %s)", name, i.Dir, got, want)
+		}
+	}
+	return nil
 }
