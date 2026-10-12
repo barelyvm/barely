@@ -1,0 +1,61 @@
+From: Louis Laugesen <louis@lgsn.dev>
+Subject: [PATCH] virtio_fs: make default_permissions a parameter
+
+virtio-fs always mounts with default_permissions, so the guest kernel
+applies Unix permission checks to a share using the uid, gid and mode the
+host reports. A container running as another uid then cannot use files
+owned by the host user, although the host server performs every operation
+as that user and would have allowed it.
+
+Add the parameter virtiofs.default_permissions (default on, read-only at
+runtime). Booting with virtiofs.default_permissions=0 leaves every
+permission decision to the host server, which is how Docker Desktop's file
+sharing behaves.
+
+FUSE refuses a connection that negotiates FUSE_ALLOW_IDMAP without
+default_permissions. Skip idmapping in that case instead of failing;
+requests still carry the caller's uid and gid.
+---
+--- a/fs/fuse/virtio_fs.c
++++ b/fs/fuse/virtio_fs.c
+@@ -33,6 +33,16 @@
+ static DEFINE_MUTEX(virtio_fs_mutex);
+ static LIST_HEAD(virtio_fs_instances);
+ 
++/*
++ * barely: with default_permissions off the guest kernel doesn't apply Unix
++ * permission checks to virtio-fs; the host server performs every operation
++ * as the host user and decides. That's how Docker Desktop's file sharing
++ * behaves: a container running as any uid can work with the Mac user's
++ * bind-mounted files. Boot with virtiofs.default_permissions=0.
++ */
++static bool default_permissions = true;
++module_param(default_permissions, bool, 0444);
++
+ /* The /sys/fs/virtio_fs/ kset */
+ static struct kset *virtio_fs_kset;
+ 
+@@ -1530,7 +1540,7 @@
+ static inline void virtio_fs_ctx_set_defaults(struct fuse_fs_context *ctx)
+ {
+ 	ctx->rootmode = S_IFDIR;
+-	ctx->default_permissions = 1;
++	ctx->default_permissions = default_permissions;
+ 	ctx->allow_other = 1;
+ 	ctx->max_read = UINT_MAX;
+ 	ctx->blksize = 512;
+--- a/fs/fuse/inode.c
++++ b/fs/fuse/inode.c
+@@ -1446,6 +1446,9 @@
+ 			if (flags & FUSE_ALLOW_IDMAP) {
+ 				if (fc->default_permissions)
+ 					fm->sb->s_iflags &= ~SB_I_NOIDMAP;
+-				else
+-					ok = false;
++				/*
++				 * barely: without default_permissions (virtiofs.default_permissions=0)
++				 * skip idmapping instead of failing the connection; requests
++				 * still carry the caller's uid/gid.
++				 */
+ 			}
+ 			if (flags & FUSE_OVER_IO_URING && fuse_uring_enabled())

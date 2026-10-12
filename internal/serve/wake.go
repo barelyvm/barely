@@ -1,0 +1,57 @@
+package serve
+
+import (
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
+
+// wakeCheckInterval is how often wakeLoop samples the wall clock. macOS
+// suspends every thread during sleep, including a time.Ticker's: when the
+// wall-clock gap between two fires is much bigger than this interval, the
+// Mac must have been asleep in between, with no separate notification
+// needed. The comparison strips Go's monotonic reading, which on macOS
+// doesn't advance during sleep and would hide the gap.
+const wakeCheckInterval = 10 * time.Second
+
+// wakeLoop handles Mac wake: on wake, resync the
+// guest clock.
+func (s *Server) wakeLoop(ctx context.Context) {
+	ticker := time.NewTicker(wakeCheckInterval)
+	defer ticker.Stop()
+	usr1 := make(chan os.Signal, 1)
+	signal.Notify(usr1, syscall.SIGUSR1)
+	defer signal.Stop(usr1)
+	last := time.Now().Round(0)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-usr1:
+			log.Print("serve: SIGUSR1, resyncing the guest clock")
+			s.onWake()
+		case <-ticker.C:
+			now := time.Now().Round(0)
+			if gap := now.Sub(last); gap > wakeCheckInterval*2 {
+				log.Printf("serve: detected a gap of %s (Mac wake), resyncing the guest clock", gap.Round(time.Second))
+				s.onWake()
+			}
+			last = now
+		}
+	}
+}
+
+func (s *Server) onWake() {
+	s.mu.Lock()
+	ctl := s.ctl
+	s.mu.Unlock()
+	if ctl == nil {
+		return
+	}
+	if err := ctl.SetTime(time.Now(), 5*time.Second); err != nil {
+		log.Printf("serve: set_time on wake: %v", err)
+	}
+}

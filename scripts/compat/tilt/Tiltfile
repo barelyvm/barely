@@ -1,0 +1,2 @@
+docker_compose('compose.yaml')
+docker_build('barely-tilt-site', '.', live_update=[sync('index.html', '/app/index.html')])

@@ -1,0 +1,10 @@
+services:
+  web:
+    image: nginx:alpine
+    ports: ["18380:80"]
+  cache:
+    image: redis:7-alpine
+  probe:
+    image: alpine
+    depends_on: [web, cache]
+    command: sh -c "wget -qO- http://web >/dev/null && echo probe-ok && sleep 3600"

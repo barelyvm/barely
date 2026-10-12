@@ -1,0 +1,88 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"time"
+
+	"barely/internal/serve"
+	"barely/internal/state"
+)
+
+// stateNotRunning is the CLI-side state for "no host process to ask".
+const stateNotRunning = "not running"
+
+// cliPaths resolves the state directory the same way "barely serve" does
+// (BARELY_HOME, else ~/.barely).
+func cliPaths() (state.Paths, error) {
+	dir, err := state.Dir()
+	if err != nil {
+		return state.Paths{}, err
+	}
+	return state.New(dir), nil
+}
+
+// controlHTTP returns an http.Client that dials control.sock, and the base
+// URL to use with it.
+func controlHTTP(paths state.Paths) *http.Client {
+	sock := paths.ControlSock()
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.DialTimeout("unix", sock, 5*time.Second)
+			},
+		},
+		Timeout: 10 * time.Second,
+	}
+}
+
+// controlHTTPNoTimeout is for requests that legitimately block a long
+// time, like GET /shell/{id}/exit (waits for the guest process to exit).
+func controlHTTPNoTimeout(paths state.Paths) *http.Client {
+	sock := paths.ControlSock()
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.DialTimeout("unix", sock, 5*time.Second)
+			},
+		},
+	}
+}
+
+// fetchStatus calls GET /status. If the host process isn't running (the
+// usual reason the dial fails: control.sock refused or missing), it
+// returns a synthetic stateNotRunning status instead of an error, without
+// starting anything.
+func fetchStatus(paths state.Paths) (serve.StatusResponse, error) {
+	client := controlHTTP(paths)
+	resp, err := client.Get("http://barely/status")
+	if err != nil {
+		return serve.StatusResponse{State: stateNotRunning}, nil
+	}
+	defer resp.Body.Close()
+	var st serve.StatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&st); err != nil {
+		return serve.StatusResponse{}, fmt.Errorf("decoding /status: %w", err)
+	}
+	return st, nil
+}
+
+// controlPost POSTs path with no body and decodes the JSON reply, or the
+// control API's {"error": "..."} shape into a Go error.
+func controlPost(paths state.Paths, path string) error {
+	client := controlHTTP(paths)
+	resp, err := client.Post("http://barely"+path, "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("barely: host process isn't running (or isn't responding): %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("barely: %s: %s", path, body)
+	}
+	return nil
+}
