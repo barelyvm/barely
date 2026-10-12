@@ -3,6 +3,10 @@
 // aliases. The agent needs them before dockerd starts (a restarting
 // container's bind mounts must work from its first start), which is before
 // the control channel could deliver them.
+//
+// Entry points: Args.Encode on the host, Parse in the agent.
+//
+// Used by: internal/serve, cmd/barely-agent.
 package guestargs
 
 import (
@@ -12,11 +16,15 @@ import (
 	"barely/internal/vmtypes"
 )
 
+// Prefixes of the barely-owned words on the kernel command line.
 const (
 	shareParam = "barely.share="
 	sockParam  = "barely.docksock="
 )
 
+// Args is the boot-time configuration the host passes through the kernel
+// command line. Shares are the virtio-fs shares to mount, at the same path as
+// on the Mac.
 type Args struct {
 	Shares []vmtypes.Share
 	// DockerSockAliases are the Mac-side paths of barely's Docker socket. A

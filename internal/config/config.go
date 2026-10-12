@@ -1,5 +1,11 @@
-// Package config loads barely's user config (config.toml), applying the
-// defaults.
+// Package config loads barely's user config (~/.barely/config.toml: memory
+// and disk caps, CPUs, idle timeout, shares, start-at-login), applying the
+// defaults. The VM's resource limits are decided here, not in the helper: the
+// host process loads the config and passes the result to the VM process.
+//
+// Entry points are Load, Default, Validate and EffectiveCPUs.
+//
+// Used by: cmd/barely (setup, config) and internal/serve (every boot).
 package config
 
 import (
@@ -60,7 +66,9 @@ func Load(path string) (vmtypes.Config, error) {
 	return cfg, nil
 }
 
-// Validate checks the config's constraints.
+// Validate rejects a config the VM can't honor. Load runs it on every read, so
+// a bad hand edit fails loudly instead of at boot, and setup runs it before
+// writing new values.
 func Validate(cfg vmtypes.Config) error {
 	if cfg.MemoryMax < 1<<30 {
 		return fmt.Errorf("memory_max must be at least 1 GiB, got %s", cfg.MemoryMax)
@@ -87,6 +95,8 @@ func Validate(cfg vmtypes.Config) error {
 	return nil
 }
 
+// isNested reports whether child sits strictly below parent; identical paths
+// are not nested.
 func isNested(child, parent string) bool {
 	if child == parent {
 		return false
@@ -99,7 +109,8 @@ func hasDotDotPrefix(rel string) bool {
 	return len(rel) >= 2 && rel[:2] == ".."
 }
 
-// EffectiveCPUs resolves CPUs==0 ("all cores") to the host's core count.
+// EffectiveCPUs resolves CPUs==0 ("all cores") to the host's core count; the
+// VM spec needs a concrete number.
 func EffectiveCPUs(cfg vmtypes.Config) int {
 	if cfg.CPUs == 0 {
 		return runtime.NumCPU()

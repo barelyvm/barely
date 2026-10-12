@@ -42,6 +42,8 @@ func (s *Server) fsEventsLoop(ctx context.Context, ctl *control.Client, shares [
 			return d.DialContext(ctx, "unix", s.paths.V2375())
 		},
 	}}
+	// Recomputed from dockerd's view of running containers each time, rather
+	// than tracked from events, so a missed event can't leave a stale root.
 	refresh := func() {
 		roots, err := bindSources(ctx, client, shares)
 		if err != nil {
@@ -52,6 +54,8 @@ func (s *Server) fsEventsLoop(ctx context.Context, ctl *control.Client, shares [
 
 	filters := url.QueryEscape(`{"type":["container"],"event":["start","die","destroy"]}`)
 	for ctx.Err() == nil {
+		// Also on every (re)connect: containers may have started or died
+		// while the event stream was down.
 		refresh()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/events?filters="+filters, nil)
 		if err != nil {
@@ -69,6 +73,8 @@ func (s *Server) fsEventsLoop(ctx context.Context, ctl *control.Client, shares [
 			}
 			resp.Body.Close()
 		}
+		// The stream fails while dockerd is still starting; retry until the
+		// VM's ctx ends.
 		select {
 		case <-ctx.Done():
 			return
@@ -109,6 +115,8 @@ func bindSources(ctx context.Context, client *http.Client, shares []string) ([]s
 	return out, nil
 }
 
+// underShare reports whether p is a shared folder or inside one; only those
+// paths are visible in the guest, so only they can be forwarded.
 func underShare(p string, shares []string) bool {
 	p = filepath.Clean(p)
 	for _, sh := range shares {

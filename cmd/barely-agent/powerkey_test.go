@@ -15,6 +15,9 @@ func inputEvent(typ, code uint16, value int32) []byte {
 	return b
 }
 
+// TestIsShutdownKey pins that only the press of libkrun's restart key is a
+// shutdown request, so key release and sync events don't power the guest off.
+// Linux-only, like the code under test.
 func TestIsShutdownKey(t *testing.T) {
 	cases := []struct {
 		name string

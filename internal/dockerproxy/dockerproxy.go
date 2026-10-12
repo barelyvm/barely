@@ -1,7 +1,10 @@
-// Package dockerproxy splices Docker clients on ~/.barely/docker.sock to the
-// guest's dockerd over vsock port 2375 (host side: run/v2375). No HTTP parsing: hijacked
+// Package dockerproxy is how `docker` on the Mac reaches the guest's dockerd:
+// it splices each client of ~/.barely/docker.sock onto the unix socket the VM
+// process bridges to vsock port 2375 (run/v2375). No HTTP parsing: hijacked
 // streams (attach, exec, BuildKit sessions) need the raw bytes and correct
 // half-close.
+//
+// Used by: internal/serve, once per accepted docker.sock client (Splice).
 package dockerproxy
 
 import (
@@ -11,6 +14,8 @@ import (
 	"time"
 )
 
+// halfCloser is what *net.UnixConn offers; a half-close is what lets one
+// direction of an attach/exec stream end while the other keeps flowing.
 type halfCloser interface {
 	CloseRead() error
 	CloseWrite() error
@@ -43,8 +48,10 @@ func Splice(client net.Conn, v2375Path string, dialTimeout time.Duration) error 
 	return nil
 }
 
-// halfClose propagates EOF on src -> dst as a write-close on dst, if both
-// sides support it (they're both *net.UnixConn here).
+// halfClose propagates EOF on src -> dst as a write-close on dst. A conn
+// without half-close support is closed fully, which is the only way left to
+// signal EOF to the peer; src is unused. Both ends are *net.UnixConn in
+// practice, so the fallback is not expected to run.
 func halfClose(dst, _ net.Conn) {
 	if hc, ok := dst.(halfCloser); ok {
 		hc.CloseWrite()
@@ -53,6 +60,9 @@ func halfClose(dst, _ net.Conn) {
 	}
 }
 
+// dialRetry waits for run/v2375 to accept: right after a cold boot the
+// socket may not exist yet, or the guest's docker proxy may not be listening
+// behind it.
 func dialRetry(path string, timeout time.Duration) (net.Conn, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
@@ -65,6 +75,6 @@ func dialRetry(path string, timeout time.Duration) (net.Conn, error) {
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("dialing %s: %w", path, lastErr)
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) // fast enough that cold start isn't padded, slow enough not to spin
 	}
 }

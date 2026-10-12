@@ -37,6 +37,8 @@ func FindHelper(barelyPath, binDir string) (string, error) {
 // Hypervisor.framework refuses binaries without the entitlement, and the
 // VM process would otherwise die during boot with an opaque HVF error.
 func checkHypervisorEntitlement(helper string) error {
+	// Checked once per process: codesign is an exec and the helper doesn't
+	// change while serving.
 	entitlementOnce.Do(func() {
 		entitlementErr = HasHypervisorEntitlement(helper)
 	})

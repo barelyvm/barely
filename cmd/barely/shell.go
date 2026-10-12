@@ -103,6 +103,8 @@ func runShell(args []string) error {
 	io.Copy(os.Stdout, br)
 
 	code := fetchShellExit(paths, session)
+	// os.Exit skips the deferred Restore above, so the terminal is put back
+	// by hand.
 	if oldState != nil {
 		term.Restore(int(os.Stdin.Fd()), oldState)
 	}

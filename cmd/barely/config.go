@@ -38,6 +38,9 @@ func runConfig(args []string) error {
 	return nil
 }
 
+// editConfig validates after the editor exits because nothing else would: a
+// broken config.toml otherwise only shows up when the host process next fails
+// to boot the VM.
 func editConfig(paths state.Paths) error {
 	if _, err := os.Stat(paths.Config()); os.IsNotExist(err) {
 		cfg := config.Default()

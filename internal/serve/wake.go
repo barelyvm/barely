@@ -22,8 +22,9 @@ const wakeCheckInterval = 10 * time.Second
 // clock is still resynced for every one, but only a real wake is logged.
 const wakeLogMin = 5 * time.Minute
 
-// wakeLoop handles Mac wake: on wake, resync the
-// guest clock.
+// wakeLoop pushes the host time into the guest after the Mac wakes, because
+// the guest clock falls behind while the host sleeps. SIGUSR1 triggers the
+// same resync by hand.
 func (s *Server) wakeLoop(ctx context.Context) {
 	ticker := time.NewTicker(wakeCheckInterval)
 	defer ticker.Stop()
@@ -39,6 +40,7 @@ func (s *Server) wakeLoop(ctx context.Context) {
 			log.Print("serve: SIGUSR1, resyncing the guest clock")
 			s.onWake()
 		case <-ticker.C:
+			// Round(0) strips the monotonic reading; see wakeCheckInterval.
 			now := time.Now().Round(0)
 			if gap := now.Sub(last); gap > wakeCheckInterval*2 {
 				if gap >= wakeLogMin {
@@ -51,6 +53,7 @@ func (s *Server) wakeLoop(ctx context.Context) {
 	}
 }
 
+// onWake resyncs the guest clock; no-op when no VM is up.
 func (s *Server) onWake() {
 	s.mu.Lock()
 	ctl := s.ctl

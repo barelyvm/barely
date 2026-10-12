@@ -57,6 +57,8 @@ func (s *Server) trimLoop(ctx context.Context, ctl *control.Client) {
 	schedule := func() {
 		mu.Lock()
 		defer mu.Unlock()
+		// A new deletion restarts the countdown, so a burst of deletions
+		// (prune, compose down) trims once, after it settles.
 		pending := timer != nil
 		if pending {
 			timer.Stop()
@@ -65,6 +67,7 @@ func (s *Server) trimLoop(ctx context.Context, ctl *control.Client) {
 			log.Printf("serve: deletion seen, fstrim scheduled in %s", trimDelay)
 		}
 		timer = time.AfterFunc(trimDelay, func() {
+			// The VM may have exited while the timer ran; its ctl is dead then.
 			if ctx.Err() == nil {
 				s.fstrim(ctl, "after deletions")
 			}
@@ -97,6 +100,8 @@ func (s *Server) trimLoop(ctx context.Context, ctl *control.Client) {
 			}
 			resp.Body.Close()
 		}
+		// The stream fails while dockerd is still starting and ends when it
+		// restarts; retry until the VM's ctx ends.
 		select {
 		case <-ctx.Done():
 			return
@@ -105,6 +110,9 @@ func (s *Server) trimLoop(ctx context.Context, ctl *control.Client) {
 	}
 }
 
+// fstrim asks the guest to trim the data disk so deleted Docker data stops
+// occupying space on the Mac. Failures are only logged: a missed trim costs
+// disk space, not correctness.
 func (s *Server) fstrim(ctl *control.Client, why string) {
 	n, err := ctl.Fstrim(trimTimeout)
 	if err != nil {

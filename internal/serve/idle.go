@@ -35,6 +35,9 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 			}
 			if elapsed := time.Since(since); elapsed >= time.Duration(s.cfg.IdleTimeout) {
 				log.Printf("serve: idle for %s, shutting down", elapsed.Round(time.Second))
+				// VM down first, then end Run: the process exits only once there is
+				// no guest left. launchd starts a new one on the next docker.sock
+				// connection.
 				s.shutdown()
 				cancel()
 				return
@@ -49,6 +52,7 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 func (s *Server) checkIdle() (idle bool, since time.Time) {
 	busy := s.clients.Load() > 0 || s.shellSessions.Load() > 0
 	if !busy {
+		// Queried before taking mu: it is a round trip to dockerd.
 		n, err := s.runningContainers()
 		if err != nil {
 			// Can't tell: don't shut down on a guess.

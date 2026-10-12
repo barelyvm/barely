@@ -69,6 +69,8 @@ func TestShellOneOffCommand(t *testing.T) {
 	}
 }
 
+// TestShellResizeUnknownSession pins that a resize for a session that never
+// opened or already exited is an error reply rather than silently ignored.
 func TestShellResizeUnknownSession(t *testing.T) {
 	if err := resizeShell(99999, 24, 80); err == nil {
 		t.Fatal("expected error for unknown session")

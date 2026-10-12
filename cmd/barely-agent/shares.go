@@ -12,6 +12,9 @@ import (
 	"barely/internal/vmtypes"
 )
 
+// bootArgs reads what the host process passed on the kernel command line
+// (shares to mount, Docker socket paths to alias); there is no other channel
+// before the control connection is up.
 func bootArgs() (guestargs.Args, error) {
 	b, err := os.ReadFile("/proc/cmdline")
 	if err != nil {

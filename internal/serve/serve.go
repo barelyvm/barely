@@ -1,6 +1,19 @@
 // Package serve is the host process ("barely serve"): loads config, finds the
 // guest image, boots and supervises the VM process, and proxies the
 // Docker socket to it.
+//
+// The VM boots lazily: nothing starts until the first docker.sock client
+// (or "barely shell" / "barely restart") asks, and it shuts down again after
+// Config.IdleTimeout with nothing running. The host process itself is
+// launchd's job: launchd owns docker.sock, starts "barely serve" on the
+// first connection and tolerates it exiting between uses.
+//
+// Entry points are New and Server.Run. FindHelper, HasHypervisorEntitlement
+// and HelperName let the CLI locate and verify the signed barelyvm helper
+// the same way a boot does. StatusResponse and TopEvent are the control
+// API's wire types, shared with the CLI.
+//
+// Used by: cmd/barely (serve, setup, doctor, status, top).
 package serve
 
 import (
@@ -34,6 +47,12 @@ import (
 	"barely/internal/vmtypes"
 )
 
+// controlDialTimeout bounds the whole wait for the guest agent to answer hello
+// after the VM process starts; helloAttemptTimeout bounds each try.
+// dockerDialTimeout is how long a client waits for dockerd's vsock port on a
+// cold start. shutdownGrace is how long the VM process gets to power off after
+// the agent is told to shut down, before SIGTERM; shutdownKill is the further
+// wait before SIGKILL.
 const (
 	controlDialTimeout  = 60 * time.Second
 	helloAttemptTimeout = 5 * time.Second
@@ -59,9 +78,18 @@ type Server struct {
 
 	// bootMu serialises boots so a slow boot never holds mu, which status,
 	// top and the idle loop need.
+	// shutdown takes it too, so a boot and a shutdown never overlap either.
+	// Lock order is bootMu, then mu; never take bootMu while holding mu.
 	bootMu sync.Mutex
+	// runCtx is the context Run serves under (guarded by mu). Once it is
+	// cancelled the process is exiting and ensureVM refuses to boot.
 	runCtx context.Context
 
+	// mu guards everything below and is only held briefly, never across a
+	// boot, shutdown or any call into the guest. startedAt is when Run began
+	// serving, not when the current VM booted, so status uptime is the host
+	// process's and survives "barely restart". idleSince is zero while
+	// anything is busy; checkIdle starts the clock.
 	mu        sync.Mutex
 	booting   bool
 	exiting   bool // set by /stop; ensureVM boots nothing from then on
@@ -239,11 +267,16 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
+// handleClient serves one docker.sock connection: the VM boots on demand
+// inside the client's first request, then the connection is spliced to
+// dockerd. The deferred client count keeps idle shutdown away while it is open.
 func (s *Server) handleClient(ctx context.Context, client net.Conn) {
 	acceptedAt := time.Now()
 	defer client.Close()
 	s.clients.Add(1)
 	defer s.clients.Add(-1)
+	// Sampled before ensureVM so only the connection that triggers a boot
+	// logs the cold-start time.
 	wasRunning := s.vmRunning()
 	if _, err := s.ensureVM(ctx); err != nil {
 		log.Print(err)
@@ -275,7 +308,9 @@ func writeDockerError(client net.Conn, err error) {
 }
 
 // ensureVM boots the VM process if one isn't already running and returns
-// the connected control-channel client.
+// the connected control-channel client. Every path that needs a guest (docker
+// clients, shell, restart) funnels through here, so concurrent callers share
+// one boot: the first holds bootMu while booting and the rest find it running.
 func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 	s.bootMu.Lock()
 	defer s.bootMu.Unlock()
@@ -299,12 +334,17 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 			return ctl, nil
 		}
 	}
+	// Crash-loop guard: refuse to boot again until old crashes age out of
+	// crashLoopWindow, so a VM that dies on every boot doesn't spin for as
+	// long as clients keep reconnecting.
 	if n := s.recentCrashes(); n >= crashLoopCount {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("serve: VM process crashed %d times in the last %s, not retrying automatically; see %s", n, crashLoopWindow, s.paths.ConsoleLog())
 	}
 	s.booting = true
 	runCtx := s.runCtx
+	// mu is released for the boot (seconds long) so status, top and the idle
+	// loop stay responsive; bootMu still keeps other boots and shutdown out.
 	s.mu.Unlock()
 
 	vm, ctl, err := s.boot()
@@ -319,14 +359,23 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 	if runCtx == nil {
 		runCtx = context.Background()
 	}
+	// The per-VM loops share one context: watch cancels it when the VM
+	// process exits so none outlives its guest, and the next boot starts a
+	// fresh set.
 	portsCtx, stopPorts := context.WithCancel(runCtx)
 	go s.ports.Run(portsCtx)
 	go s.trimLoop(portsCtx, ctl)
+	// Copied because the loop outlives this call and s.cfg.Shares is
+	// replaced by reloadConfig.
 	go s.fsEventsLoop(portsCtx, ctl, append([]string(nil), s.cfg.Shares...))
 	go s.watch(vm, stopPorts)
 	return ctl, nil
 }
 
+// boot starts the barelyvm helper with a fresh VMSpec and returns once the
+// guest agent has answered hello on the control channel. Only ensureVM calls
+// it, with bootMu held. dockerd is usually not up yet at return; clients wait
+// for it in dockerproxy.Splice's dial retry.
 func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	bootStart := time.Now()
 	helper, err := FindHelper(s.barelyPath, s.paths.BinDir())
@@ -354,6 +403,8 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	if err := os.MkdirAll(s.paths.RunDir(), 0o700); err != nil {
 		return nil, nil, err
 	}
+	// Clear sockets left by a previous VM process so the new one can bind
+	// its vsock listeners.
 	for _, p := range []string{s.paths.V1024(), s.paths.V1025(), s.paths.V2375()} {
 		os.Remove(p)
 	}
@@ -368,6 +419,8 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	}
 	log.Printf("serve: boot: +%s data.img ready", time.Since(bootStart).Round(time.Millisecond))
 
+	// In Cmdline, page_reporting is how the guest hands freed pages back to
+	// the host (elastic memory); the order is the smallest block size reported.
 	spec := vmtypes.VMSpec{
 		CPUs:        cpus,
 		MemoryBytes: uint64(cfg.MemoryMax),
@@ -386,12 +439,16 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 		ConsoleLog: s.paths.ConsoleLog(),
 	}
 
+	// Not runCtx: the gateway's lifetime is the VM's (it ends when the VM
+	// process closes its end), not Run's.
 	ctx := context.Background()
 	netFD, closeGateway, err := s.net.Socketpair(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// On success the gateway lives until the VM process exits; any earlier
+	// return must close it here.
 	ok := false
 	defer func() {
 		if !ok {
@@ -427,6 +484,7 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 		ok = true
 		log.Printf("serve: boot: +%s hello answered (kernel boot + agent startup)", time.Since(bootStart).Round(time.Millisecond))
 		go s.logDockerdReady(r.ctl, bootStart)
+		// The reported peak is per boot, so drop the previous VM's samples.
 		s.footHist.Reset()
 		go s.sampleFootprint(vm, vm.Done())
 		return vm, r.ctl, nil
@@ -484,10 +542,14 @@ func (s *Server) watch(vm *vmproc.Process, stopPorts context.CancelFunc) {
 	err, requested := vm.Wait()
 	stopPorts()
 	s.mu.Lock()
+	// shutdown may already have cleared it, or ensureVM replaced it with a
+	// newer VM; only clear our own.
 	if s.vm == vm {
 		s.vm, s.ctl = nil, nil
 	}
 	s.mu.Unlock()
+	// Only exits nobody asked for (not vm.Stop) count toward the crash-loop
+	// guard.
 	if !requested {
 		log.Printf("serve: VM process exited unexpectedly: %v (see %s); last lines of %s:\n%s", err, s.paths.ConsoleLog(), s.paths.VMLog(), tailLines(s.paths.VMLog(), 20))
 		s.mu.Lock()
@@ -510,6 +572,10 @@ func (s *Server) recentCrashes() int {
 	return len(s.crashes)
 }
 
+// shutdown is the one clean-stop sequence behind /stop, /restart, idle
+// shutdown and SIGTERM: trim the data disk, tell the agent to unmount
+// /var/lib/docker and power off, then reap the VM process. Safe to call when
+// no VM is running and more than once.
 func (s *Server) shutdown() {
 	// Held until the VM process has exited: a client connecting mid-shutdown
 	// would otherwise boot a second VM on data.img while this one is still
@@ -524,6 +590,8 @@ func (s *Server) shutdown() {
 		return
 	}
 	if ctl != nil {
+		// Last chance to give freed space back to the Mac: the disk image
+		// can't be trimmed once the guest is gone.
 		s.fstrim(ctl, "before shutdown")
 		ctl.Shutdown(shutdownGrace)
 		ctl.Close()

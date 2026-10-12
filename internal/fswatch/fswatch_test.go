@@ -1,5 +1,8 @@
 //go:build darwin
 
+// The suite protects the host-path to guest-path mapping and, with real
+// FSEvents on a temp dir, the create/edit/delete records the guest applies.
+// Run with go test ./internal/fswatch.
 package fswatch
 
 import (
@@ -11,6 +14,8 @@ import (
 	"barely/internal/proto"
 )
 
+// TestCollapseAndToGuest pins that nested roots merge and that a sibling
+// sharing only a name prefix is not mistaken for a child.
 func TestCollapseAndToGuest(t *testing.T) {
 	roots := collapse([]string{"/tmp/a/b", "/tmp/a", "/Users/x/proj"})
 	if len(roots) != 2 {

@@ -28,9 +28,13 @@ const (
 	// treated as cold: reclaiming mid-build would only make the build
 	// re-read what it just cached.
 	settleWindow = 30 * time.Second
+	// settleGrowth is the cache growth inside settleWindow that still counts
+	// as stopped, so background churn doesn't keep resetting the wait.
 	settleGrowth = 64 << 20
-	cacheFloor   = 256 << 20
-	reclaimStep  = 1 << 30
+	// cacheFloor is the cache left in place so hot files stay warm.
+	cacheFloor = 256 << 20
+	// reclaimStep caps one reclaim so a large cache is released gradually.
+	reclaimStep = 1 << 30
 	// compactGain is how much free memory must have appeared since the
 	// last compaction before compacting again. A workload that made many
 	// small allocations leaves its freed memory fragmented, and only
@@ -41,6 +45,7 @@ const (
 	psiBusy = 10.0
 )
 
+// memInfo is the subset of /proc/meminfo the reclaim loop and mem_stats use.
 type memInfo struct {
 	total, free, available, cache uint64
 }
@@ -81,6 +86,8 @@ func readMemInfo() (memInfo, error) {
 	return m, sc.Err()
 }
 
+// readPSISomeAvg10 returns 0 when PSI is unavailable, which reads as "not
+// under pressure" so reclaim still runs on kernels without it.
 func readPSISomeAvg10() float64 {
 	b, err := os.ReadFile("/proc/pressure/memory")
 	if err != nil {
@@ -100,6 +107,8 @@ func readPSISomeAvg10() float64 {
 	return 0
 }
 
+// memStats is the guest's own view of its memory, which the host cannot see
+// from outside; it backs the guest line in `barely status` and `barely top`.
 func memStats() (vmtypes.MemStats, error) {
 	m, err := readMemInfo()
 	if err != nil {
@@ -135,12 +144,14 @@ func sendMemStats(conn *controlConn) {
 	}
 }
 
+// cacheSample is one reclaimLoop observation of page-cache size.
 type cacheSample struct {
 	at    time.Time
 	bytes uint64
 }
 
-// reclaimLoop runs for the life of the guest (PID 1 only).
+// reclaimLoop runs for the life of the guest (PID 1 only), returning idle
+// page cache so the VM's footprint on the Mac shrinks after a workload ends.
 func reclaimLoop() {
 	var history []cacheSample
 	var compactedAtFree uint64
@@ -156,6 +167,8 @@ func reclaimLoop() {
 		for len(history) > 0 && now.Sub(history[0].at) > settleWindow {
 			history = history[1:]
 		}
+		// Free memory fell (the guest allocated again), so the next gain is
+		// measured from the new low, not the old peak.
 		if m.free < compactedAtFree {
 			compactedAtFree = m.free
 		}

@@ -16,13 +16,16 @@ import (
 	"barely/internal/vmtypes"
 )
 
-// netFD and parentDeathFD are the fd numbers the host process hands barelyvm.
+// netFD and parentDeathFD are the fd numbers the host process hands barelyvm
+// (internal/vmproc ExtraFiles): the guest NIC's socket and a pipe that closes
+// when the host process dies.
 const (
 	netFD         = 3
 	parentDeathFD = 4
 )
 
-// orphanExitGrace covers the agent stopping dockerd (up to 10 s) and
+// orphanExitGrace is how long an orphaned VM gets to power off before it
+// exits anyway; it covers the agent stopping dockerd (up to 10 s) and
 // powering off.
 const orphanExitGrace = 20 * time.Second
 
@@ -58,6 +61,7 @@ func runVM() error {
 
 	requestShutdown := func(reason string) {
 		fmt.Fprintf(os.Stderr, "barely vm: requesting guest shutdown: %s\n", reason)
+		// An eventfd write is an 8-byte counter increment.
 		var buf [8]byte
 		buf[0] = 1
 		if _, err := unix.Write(shutdownFD, buf[:]); err != nil {
@@ -89,6 +93,8 @@ func runVM() error {
 	return vm.Enter()
 }
 
+// validateSpec rejects what libkrun would otherwise abort the whole process
+// over, so the host process gets an error message instead of a dead helper.
 func validateSpec(spec vmtypes.VMSpec) error {
 	if spec.CPUs <= 0 {
 		return fmt.Errorf("CPUs must be positive, got %d", spec.CPUs)
@@ -115,6 +121,7 @@ func validateSpec(spec vmtypes.VMSpec) error {
 		}
 	}
 	for _, p := range spec.Vsock {
+		// sockaddr_un.sun_path is 104 bytes on macOS including the NUL.
 		if len(p.Path) > 103 {
 			return fmt.Errorf("vsock port %d: socket path %q exceeds 104 bytes", p.Port, p.Path)
 		}

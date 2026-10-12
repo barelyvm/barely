@@ -14,6 +14,11 @@ var dispatchCommands = []string{
 	"status", "logs", "doctor", "config", "shell", "top",
 }
 
+// Help is generated from commandSpecs; these tests keep it in step with main's
+// dispatch switch. Run with "go test ./cmd/barely".
+
+// TestDispatchCommandsHaveHelp fails when a command is added to main without a
+// commandSpec, which would leave it out of help and the man page.
 func TestDispatchCommandsHaveHelp(t *testing.T) {
 	for _, name := range dispatchCommands {
 		c, ok := lookupCommand(name)
@@ -30,6 +35,8 @@ func TestDispatchCommandsHaveHelp(t *testing.T) {
 	}
 }
 
+// TestHelpCommandWorksForEveryDispatchedCommand covers hidden commands too,
+// since "barely help serve" must keep working even though the overview omits it.
 func TestHelpCommandWorksForEveryDispatchedCommand(t *testing.T) {
 	for _, name := range dispatchCommands {
 		var buf bytes.Buffer
@@ -50,6 +57,8 @@ func TestHelpUnknownCommandErrors(t *testing.T) {
 	}
 }
 
+// TestOverviewHidesInternalCommands keeps serve and man, which users never
+// run themselves, out of the overview.
 func TestOverviewHidesInternalCommands(t *testing.T) {
 	var buf bytes.Buffer
 	printOverview(&buf)

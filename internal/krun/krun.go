@@ -1,5 +1,11 @@
 // Package krun wraps the libkrun C API (barely's fork) used
-// by the VM process (barelyvm) to boot the guest.
+// by the VM process (barelyvm) to boot the guest. It turns a vmtypes.VMSpec
+// into libkrun calls and is the only package that links libkrun, so
+// everything else builds and tests without the C library.
+//
+// Entry points: New, VM.Configure, VM.ShutdownEventFD, VM.Enter, in that order.
+//
+// Used by: cmd/barelyvm.
 package krun
 
 /*
@@ -20,7 +26,8 @@ import (
 	"barely/internal/vmtypes"
 )
 
-// VM is one configuration context, from krun_create_ctx to krun_start_enter.
+// VM is one libkrun configuration context, from krun_create_ctx to
+// krun_start_enter.
 type VM struct {
 	ctx C.uint32_t
 }
@@ -37,6 +44,7 @@ func cstr(s string) *C.char { return C.CString(s) }
 // New creates a configuration context. SetLogLevel is called once per
 // process; callers only need one VM per process.
 func New() (*VM, error) {
+	// Level 2 is Warn in libkrun.h.
 	if err := check("set_log_level", C.krun_set_log_level(2)); err != nil {
 		return nil, err
 	}
@@ -62,6 +70,8 @@ func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
 	if err := check("set_kernel", C.krun_set_kernel(vm.ctx, cstr(spec.Kernel), 0, initrd, cstr(spec.Cmdline))); err != nil {
 		return err
 	}
+	// barelyvm boots the guest from its own kernel and the agent as PID 1, so
+	// libkrun's built-in /init.krun must not be injected.
 	if err := check("disable_implicit_init", C.krun_disable_implicit_init(vm.ctx)); err != nil {
 		return err
 	}
@@ -70,6 +80,8 @@ func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
 			return err
 		}
 	}
+	// Replace libkrun's implicit vsock (TSI socket hijacking) with a plain one
+	// so only the ports in the spec exist; 0 means no TSI features.
 	if err := check("disable_implicit_vsock", C.krun_disable_implicit_vsock(vm.ctx)); err != nil {
 		return err
 	}
@@ -104,6 +116,8 @@ func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
 		if err != nil {
 			return err
 		}
+		// NET_FLAG_VFKIT: the peer is gvisor-tap-vsock speaking the vfkit
+		// framing over a unixgram socketpair.
 		if err := check("add_net_unixgram", C.krun_add_net_unixgram(vm.ctx, nil, C.int(netFD), (*C.uint8_t)(unsafe.Pointer(&mac[0])), 0, C.NET_FLAG_VFKIT)); err != nil {
 			return err
 		}

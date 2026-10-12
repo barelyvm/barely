@@ -23,7 +23,8 @@ type History struct {
 }
 
 // NewHistory returns a History holding up to capacity samples (e.g. one
-// hour at 1 s).
+// hour at 1 s). internal/serve owns the one History that feeds status and
+// top.
 func NewHistory(capacity int) *History {
 	if capacity < 1 {
 		capacity = 1
@@ -40,6 +41,7 @@ func (h *History) Add(s Sample) {
 	if h.next == 0 {
 		h.full = true
 	}
+	// >= so a plateau at the peak reports its latest time, not its first.
 	if s.Bytes >= h.peak.Bytes {
 		h.peak = s
 	}

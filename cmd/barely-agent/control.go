@@ -27,6 +27,8 @@ func newAgent(version string) *agent {
 // 1 only); the control channel sends the unsolicited "ready" when it does.
 var dockerReady = make(chan struct{})
 
+// run blocks until any of the three listeners fails; as PID 1 the caller
+// treats that as fatal, since a guest the host can't reach is useless.
 func (a *agent) run() error {
 	errCh := make(chan error, 3)
 	go func() { errCh <- a.serveControl() }()
@@ -66,6 +68,8 @@ func (c *controlConn) send(m proto.Message) error {
 	return proto.Write(c, m)
 }
 
+// handleControl serves one host connection until it drops or a request
+// fails; the host reconnects and says hello again.
 func (a *agent) handleControl(nc net.Conn) {
 	conn := &controlConn{Conn: nc}
 	defer conn.Close()
@@ -101,6 +105,9 @@ func (a *agent) handleControl(nc net.Conn) {
 	}
 }
 
+// dispatch answers one control request. A returned error ends the
+// connection (handleControl), so only transport failures and the hello
+// protocol mismatch return one; a failed request is an error reply instead.
 func (a *agent) dispatch(conn *controlConn, msg proto.Message) error {
 	switch msg.Type {
 	case proto.TypeHello:
@@ -119,6 +126,8 @@ func (a *agent) dispatch(conn *controlConn, msg proto.Message) error {
 		return a.reply(conn, msg, helloReply, nil)
 	case proto.TypeShutdown:
 		stopDockerd()
+		// Reply before power-off: once the VM is gone the host can no longer
+		// read the ack that tells it the guest shut down cleanly.
 		if err := a.reply(conn, msg, struct{}{}, nil); err != nil {
 			return err
 		}
@@ -167,6 +176,8 @@ func (a *agent) dispatch(conn *controlConn, msg proto.Message) error {
 	}
 }
 
+// reply echoes the request's Type and ID so the host can match it to the
+// waiting caller; a non-nil replyErr wins over payload.
 func (a *agent) reply(conn *controlConn, req proto.Message, payload any, replyErr error) error {
 	m := proto.Message{Type: req.Type, ID: req.ID}
 	if replyErr != nil {

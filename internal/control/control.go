@@ -1,5 +1,12 @@
 // Package control is the host side of the control channel to barely-agent,
-// vsock port 1024 (host side: run/v1024).
+// vsock port 1024 (host side: run/v1024). It is how barely serve learns the
+// guest is up (hello, ready), watches its memory (mem_stats), and drives
+// the guest from outside: shutdown, clock resync, fstrim, host file events
+// and shell sessions.
+//
+// Entry points: DialAndHello to connect, then the Client methods.
+//
+// Used by: internal/serve.
 package control
 
 import (
@@ -94,6 +101,9 @@ func (c *Client) Run() {
 			c.failPending(err)
 			return
 		}
+		// Replies echo a non-zero ID; unsolicited messages carry 0. A
+		// reply nobody is waiting for any more (Request timed out) falls
+		// through to the type switch and is dropped there.
 		if m.ID != 0 {
 			c.mu.Lock()
 			ch, ok := c.pending[m.ID]
@@ -136,6 +146,8 @@ func (c *Client) Run() {
 	}
 }
 
+// failPending wakes every blocked Request when the connection dies, by
+// closing its reply channel; Request reads the close as "connection closed".
 func (c *Client) failPending(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -153,6 +165,8 @@ func (c *Client) Request(typ string, payload any, reply any, timeout time.Durati
 	if err != nil {
 		return err
 	}
+	// Buffered so Run can hand over a reply without blocking even if this
+	// Request has just timed out and stopped receiving.
 	ch := make(chan proto.Message, 1)
 	c.mu.Lock()
 	c.pending[id] = ch
@@ -183,8 +197,10 @@ func (c *Client) Request(typ string, payload any, reply any, timeout time.Durati
 	}
 }
 
-// Hello performs the protocol handshake. A protocol mismatch is returned
-// as a clear error.
+// Hello checks that the running agent speaks proto.Version. guestimg.Find
+// already filters images by manifest, so a mismatch here means the booted
+// guest is not the image the manifest described; failing at boot beats
+// misparsing messages later.
 func (c *Client) Hello(timeout time.Duration) (proto.HelloReply, error) {
 	var reply proto.HelloReply
 	if err := c.Request(proto.TypeHello, proto.Hello{Protocol: proto.Version}, &reply, timeout); err != nil {

@@ -1,5 +1,13 @@
-// Package portforward follows dockerd's container events from the host
-// process and keeps published ports exposed on the Mac in sync with them.
+// Package portforward makes `docker run -p` work on the Mac: it follows
+// dockerd's container events from the host process and keeps each published
+// port exposed on the Mac while its container lives. The guest's dockerd
+// already maps hostPort to containerPort inside the VM, so the Mac only
+// needs a forward to the guest's address.
+//
+// Entry points are New and Watcher.Run; the forwarding itself is delegated to
+// an Exposer (internal/netstack.Network).
+//
+// Used by: internal/serve, which runs one Watcher per VM boot.
 package portforward
 
 import (
@@ -19,6 +27,8 @@ import (
 )
 
 const (
+	// requestTimeout bounds the one-shot dockerd calls; the events stream
+	// has no timeout because it is meant to stay open.
 	requestTimeout = 10 * time.Second
 	reconnectDelay = 2 * time.Second
 )
@@ -122,7 +132,9 @@ func New(v2375Path, deviceIP string, exposer Exposer) *Watcher {
 	}
 }
 
-// Run watches until ctx is cancelled, reconnecting on any error.
+// Run watches until ctx is cancelled, reconnecting on any error: dockerd
+// may not be listening yet when the VM has just booted, and a dropped
+// stream would otherwise leave published ports stale.
 func (w *Watcher) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		if err := w.watchOnce(ctx); err != nil && ctx.Err() == nil {
@@ -137,7 +149,7 @@ func (w *Watcher) Run(ctx context.Context) {
 }
 
 // Conflicts returns a copy of the last-seen bind error per "protocol
-// local".
+// local". It has no production caller; only tests read it.
 func (w *Watcher) Conflicts() map[string]string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -148,6 +160,10 @@ func (w *Watcher) Conflicts() map[string]string {
 	return out
 }
 
+// watchOnce runs one events-stream session. It reconciles first so
+// containers that started or died while the stream was down (or before
+// serve began watching) are picked up, then applies events until the stream
+// breaks.
 func (w *Watcher) watchOnce(ctx context.Context) error {
 	if err := w.reconcile(ctx); err != nil {
 		return fmt.Errorf("reconcile: %w", err)
@@ -223,6 +239,8 @@ func (w *Watcher) reconcile(ctx context.Context) error {
 		return err
 	}
 
+	// Containers tracked but missing from the listing died while the events
+	// stream was down; their forwards are released below.
 	w.mu.Lock()
 	stale := make(map[string]bool, len(w.byCtr))
 	for id := range w.byCtr {
@@ -304,6 +322,9 @@ func (w *Watcher) onStart(ctx context.Context, id string) {
 // apply replaces id's exposed bindings with want, exposing new ones and
 // dropping ones no longer present.
 func (w *Watcher) apply(id string, want []binding) {
+	// Release first: a restarted container may republish on different ports,
+	// and re-exposing an address this Watcher still holds would conflict
+	// with itself.
 	w.release(id)
 	applied := make([]binding, 0, len(want))
 	for _, b := range want {

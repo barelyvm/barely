@@ -1,7 +1,14 @@
-// Package footprint reads the VM process's memory footprint on the Mac
-// ("barely status"/"barely top") and keeps a short
-// history so both commands can show the current value alongside its recent
-// peak.
+// Package footprint measures how much real RAM the VM process costs the Mac
+// ("barely status"/"barely top") and keeps a short history so both commands
+// can show the current value alongside its recent peak. The reading is
+// meaningful as the guest's memory cost because the VM process returns freed
+// guest pages to macOS (balloon free-page reporting) and drops double-counted
+// host page-table entries.
+//
+// Entry points are Read, and History for the rolling window.
+//
+// Used by: internal/serve (sampling, status), cmd/barely (top) and
+// internal/dockerdesktop (the same reading for Docker Desktop's VM).
 package footprint
 
 /*

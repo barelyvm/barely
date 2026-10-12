@@ -79,6 +79,8 @@ func runUninstall(args []string) error {
 		fmt.Printf("removed docker context %q\n", *contextName)
 	}
 
+	// Only remove the link if it still points at our socket; it may since have
+	// been re-pointed by Docker Desktop. sudo because setup created it with sudo.
 	if *symlinkPath != "" {
 		if target, err := os.Readlink(*symlinkPath); err == nil && target == paths.DockerSock() {
 			out, err := exec.Command("sudo", "rm", "-f", *symlinkPath).CombinedOutput()

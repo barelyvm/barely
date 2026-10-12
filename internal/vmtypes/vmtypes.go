@@ -1,7 +1,13 @@
-// Package vmtypes holds the data shapes shared between the host process and
-// the VM process: the user
-// Config, the guest image's manifest, and the VMSpec the host process hands
-// the VM process on stdin.
+// Package vmtypes holds the data shapes shared between the host process, the
+// VM process and the guest agent: the user Config, the guest image's
+// manifest, the VMSpec the host process hands the VM process on stdin, and
+// the MemStats the agent reports back. It has no logic of its own beyond
+// parsing sizes and durations from config text, so the processes can share
+// types without importing each other.
+//
+// Used by: internal/config, internal/serve, internal/vmproc, internal/krun,
+// internal/guestimg, internal/guestargs, internal/control, internal/netstack,
+// cmd/barelyvm, cmd/barely, cmd/barely-agent.
 package vmtypes
 
 import (
@@ -32,6 +38,8 @@ func (b ByteSize) MarshalText() ([]byte, error) {
 }
 
 // ParseByteSize parses sizes like "100GiB", "512 MiB", "100GB", "1024".
+// kb/mb/gb/tb are powers of 1000; kib/mib/gib/tib and the bare k/m/g/t are
+// powers of 1024.
 func ParseByteSize(s string) (ByteSize, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -72,6 +80,9 @@ func ParseByteSize(s string) (ByteSize, error) {
 	return ByteSize(n * mult), nil
 }
 
+// formatByteSize writes exact GiB/MiB multiples as "8G"/"512M" so a
+// marshalled config stays readable, and anything else as exact bytes so
+// ParseByteSize round-trips it.
 func formatByteSize(b uint64) string {
 	const gib, mib = 1 << 30, 1 << 20
 	if b != 0 && b%gib == 0 {
@@ -104,7 +115,8 @@ func (d Duration) MarshalText() ([]byte, error) {
 	return []byte(d.String()), nil
 }
 
-// Config is the user-editable config (config.toml).
+// Config is the user-editable config (config.toml). internal/config loads and
+// validates it; internal/serve sizes the VM from it each boot.
 type Config struct {
 	MemoryMax    ByteSize `toml:"memory_max"`
 	CPUs         int      `toml:"cpus"`
@@ -114,7 +126,10 @@ type Config struct {
 	StartAtLogin bool     `toml:"start_at_login"`
 }
 
-// GuestManifest ships with each guest image.
+// GuestManifest is manifest.json, written by `make guest` into each guest
+// image directory and read by guestimg. AgentProtocol decides whether the
+// image is usable by this host; Kernel, FseventABI and SHA256 are recorded
+// but not read by any Go code.
 type GuestManifest struct {
 	Version       string            `json:"version"`
 	Kernel        string            `json:"kernel"`
@@ -134,33 +149,43 @@ const (
 	GatewayMAC = "5a:94:ef:e4:0c:ed"
 )
 
-// VMSpec is what the host process hands the VM process on stdin.
+// VMSpec is everything needed to boot the guest, built by internal/serve,
+// sent as JSON on the VM process's stdin (internal/vmproc), checked by
+// barelyvm and applied by internal/krun. Paths are absolute host paths.
 type VMSpec struct {
 	CPUs        int
 	MemoryBytes uint64
 	Kernel      string
-	Initrd      string
-	Cmdline     string
-	RootImage   string
-	DataImage   string
-	DataCap     uint64
+	Initrd      string // optional
+	Cmdline     string // kernel command line, including the guestargs words
+	RootImage   string // attached read-only as the first disk
+	DataImage   string // attached read-write as the second disk
+	DataCap     uint64 // set by serve but read by nothing
 	Shares      []Share
 	Vsock       []VsockPort
-	ConsoleLog  string
+	ConsoleLog  string // guest console output file; empty disables it
 }
 
+// Share is one host directory exposed to the guest over virtio-fs. Tag is the
+// virtio-fs mount tag; guestargs passes tag and path to the agent so it mounts
+// the share at the same path.
 type Share struct {
 	HostPath string
 	Tag      string
 }
 
+// VsockPort maps a guest vsock port to a host unix socket at Path. With
+// Listen the guest listens and the host initiates by connecting to Path
+// (libkrun's "listen" flag).
 type VsockPort struct {
 	Port   uint32
 	Path   string
 	Listen bool
 }
 
-// MemStats is reported by the agent every second.
+// MemStats is the guest's own memory view, reported by the agent every second
+// and shown by `barely status` and `barely top`. PSISomeAvg10 is the kernel's
+// pressure-stall "some" 10-second average, 0 when PSI is unavailable.
 type MemStats struct {
 	TotalBytes     uint64  `json:"total_bytes"`
 	AvailableBytes uint64  `json:"available_bytes"`

@@ -1,7 +1,8 @@
 // Command barelyvm is the only part of barely that uses Apple's hypervisor,
 // so it's the only binary that needs signing with the hypervisor entitlement.
-// barely serve launches it; it's never run by hand. "run" is the VM process
-// (libkrun).
+// barely serve launches it (internal/vmproc) and it's never run by hand. "run"
+// is the VM process: it reads a VMSpec on stdin, boots the guest through
+// libkrun (internal/krun, cgo) and exits when the guest powers off.
 package main
 
 import (

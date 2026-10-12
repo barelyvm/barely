@@ -16,6 +16,8 @@ import (
 const brewPluginDir = "/opt/homebrew/lib/docker/cli-plugins"
 
 const (
+	// dockerDesktop's presence is a leftover that can take docker back from
+	// barely; checkDeps warns and setup offers the DOCKER_HOST pin.
 	dockerDesktop = "/Applications/Docker.app"
 )
 
@@ -59,6 +61,8 @@ func checkDeps() []dep {
 
 	dockerPath, err := exec.LookPath("docker")
 	if err != nil {
+		// Without the CLI the plugin and credential checks below would only
+		// repeat the same problem.
 		deps = append(deps, dep{name: "docker CLI", detail: "not found on PATH", fix: "brew install docker", fatal: true})
 		return deps
 	}
@@ -142,6 +146,8 @@ func logLine(status, name, detail string) {
 	fmt.Printf("%-5s %-18s %s\n", status, name, detail)
 }
 
+// printDeps shows checkDeps' result for doctor and setup; the fatal return is
+// what makes setup stop before it changes anything.
 func printDeps(deps []dep) (fatal bool) {
 	for _, d := range deps {
 		status := "ok"

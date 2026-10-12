@@ -1,6 +1,14 @@
 // Package netstack runs gvisor-tap-vsock's virtual network in-process, for
 // the VM's networking: DHCP, outbound traffic, DNS resolved through macOS's
-// resolver, host.docker.internal, and published ports.
+// resolver, host.docker.internal, and published ports. Running it in the
+// host process rather than a separate gvproxy means the forwarder can be
+// driven directly when containers publish ports.
+//
+// Entry points are New, Network.Socketpair (the VM's NIC) and
+// Network.Expose/Unexpose (published ports).
+//
+// Used by: internal/serve, which owns the single Network and hands
+// internal/portforward its Expose/Unexpose.
 package netstack
 
 import (
@@ -45,6 +53,8 @@ type Network struct {
 	vn *virtualnetwork.VirtualNetwork
 }
 
+// New builds the virtual network. The subnet, gateway and guest address are
+// fixed: the guest image's DHCP lease and DeviceIP depend on them.
 func New() (*Network, error) {
 	vn, err := virtualnetwork.New(&types.Configuration{
 		Subnet:            subnet,
@@ -121,10 +131,10 @@ func (n *Network) forwarderCall(path string, body any) error {
 	return nil
 }
 
-// Socketpair creates a SOCK_DGRAM pair and hands the gateway end to
-// gvisor-tap-vsock in a goroutine; the other end's fd is returned for the
-// VM process (fd 3, krun_add_net_unixgram with
-// NET_FLAG_VFKIT).
+// Socketpair is the VM's NIC: it creates a SOCK_DGRAM pair and hands the
+// gateway end to gvisor-tap-vsock in a goroutine; the other end's fd is
+// returned for the VM process (fd 3, krun_add_net_unixgram with
+// NET_FLAG_VFKIT). Called once per VM boot by internal/serve.
 func (n *Network) Socketpair(ctx context.Context) (vmFD int, closeGateway func() error, err error) {
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
 	if err != nil {

@@ -1,9 +1,15 @@
-// Command barely-agent is the guest-side half of barely.
-// It runs inside the Linux VM:
-// when it's PID 1 it finishes booting the guest (mounts, network, dockerd);
-// run any other way (a local test) it skips that. Either way it
-// then serves the control channel on vsock 1024 and proxies vsock 2375 to
-// dockerd's socket.
+// Command barely-agent is the guest-side half of barely: the init (PID 1) of
+// the Linux VM that barelyvm boots, and the only thing the host process talks
+// to inside it. guest/build.sh installs it as /init in the initrd.
+//
+// As PID 1 it boots the guest (kernel filesystems, read-only root with a
+// tmpfs overlay, data disk, shares, network, dockerd) and powers it off on
+// the host's request; run any other way (a local test) it skips that. Either
+// way it serves three vsock ports to the host process (internal/serve):
+// 1024 control (internal/proto messages: hello, shutdown, set_time,
+// fs_events, fstrim, shell_open, shell_resize; unsolicited ready, mem_stats
+// and shell_exit), 1025 raw "barely shell" session streams, and 2375 a splice
+// to dockerd's socket.
 package main
 
 import (

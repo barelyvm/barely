@@ -1,5 +1,8 @@
 // Package state locates barely's state directory (~/.barely) and the fixed paths
-// inside it.
+// inside it, so the CLI, the host process and the launchd plist agree on where
+// sockets, logs, the data disk and the guest image live.
+//
+// Used by: cmd/barely and internal/serve.
 package state
 
 import (
@@ -43,6 +46,10 @@ func EnsureDirs(dir string) error {
 	return nil
 }
 
+// Paths names the files under one state directory. The vsock sockets under
+// run/ (v1024 control, v1025 shell, v2375 docker) are the host ends of the
+// guest's vsock ports; unix socket paths are limited to 104 bytes, so the
+// names stay short.
 type Paths struct {
 	Root string
 }

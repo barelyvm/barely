@@ -1,6 +1,11 @@
-// Package dockerdesktop detects whether Docker Desktop's VM is running:
-// barely status/top/doctor
-// all report it alongside barely's own VM.
+// Package dockerdesktop detects whether Docker Desktop's VM is running and
+// what it costs in memory, so barely status, top and doctor can show it next
+// to barely's own VM for comparison.
+//
+// Entry points are PID and Footprint.
+//
+// Used by: cmd/barely (doctor) and internal/serve (the footprint reported to
+// status and top).
 package dockerdesktop
 
 import (

@@ -100,7 +100,7 @@ func renderManPage() string {
 	return b.String()
 }
 
-// roffEscape neutralizes roff's special characters (backslash and a
+// roffEscape neutralizes roff's special characters (backslash, hyphen and a
 // leading dot or single quote) in text pulled from Go strings that were
 // never written with roff in mind.
 func roffEscape(s string) string {

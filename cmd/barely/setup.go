@@ -203,6 +203,8 @@ func runSetup(args []string) error {
 	if err != nil {
 		return fmt.Errorf("barely setup: writing launchd plist: %w", err)
 	}
+	// Bootout first so re-running setup replaces an already-loaded agent
+	// instead of failing on it.
 	if err := launchd.Bootout(label); err != nil {
 		return fmt.Errorf("barely setup: %w", err)
 	}
@@ -410,6 +412,8 @@ func assetDirs(self, packaged, repo string) []string {
 	return []string{dir, filepath.Join(dir, "..", packaged), repo}
 }
 
+// firstDirWith returns the first of dirs containing name, else the last one so
+// the caller's "not found" error names the repo build path.
 func firstDirWith(name string, dirs ...string) string {
 	for _, d := range dirs {
 		if fileExists(filepath.Join(d, name)) {
@@ -437,6 +441,7 @@ func installGuest(guestDir string) (string, error) {
 			continue
 		}
 		for _, e := range entries {
+			// String comparison orders the version directory names.
 			if e.IsDir() && e.Name() > newest && fileExists(filepath.Join(d, e.Name(), "manifest.json")) {
 				newest, src = e.Name(), filepath.Join(d, e.Name())
 			}
@@ -463,6 +468,8 @@ func installGuest(guestDir string) (string, error) {
 	return newest, os.Rename(tmp, filepath.Join(guestDir, newest))
 }
 
+// copyReplace writes dst through a temp file and a rename so a process that
+// has the old dst open or mapped (a running VM) keeps its copy.
 func copyReplace(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -486,6 +493,9 @@ func copyReplace(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
+// setupDockerContext points a Docker context at barely's docker.sock. It is
+// recreated on every run so a changed state directory can't leave a context
+// aimed at the old socket.
 func setupDockerContext(name, dockerSock string, selectIt bool) error {
 	endpoint := "unix://" + dockerSock
 	exec.Command("docker", "context", "rm", "-f", name).Run() // ignore: may not exist
@@ -536,6 +546,8 @@ func setupSymlink(ui *setupUI, symlinkPath, dockerSock string) (bool, error) {
 	return true, nil
 }
 
+// shellQuote single-quotes s for the "sudo sh -c" script in setupSymlink,
+// where the paths are interpolated into a command string.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

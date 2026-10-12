@@ -1,7 +1,15 @@
-// Package launchd is the host process's end of socket activation:
-// it reads
-// the listening socket launchd already created for the "docker" entry in
-// the LaunchAgent's Sockets dictionary, instead of binding the path itself.
+// Package launchd is how barely starts on demand: it writes, loads and
+// removes the per-user LaunchAgent whose Sockets entry makes launchd own
+// ~/.barely/docker.sock, and it is the host process's end of socket
+// activation: ActivateSocket reads the listening socket launchd already
+// created for the "docker" entry instead of binding the path itself. Nothing
+// runs until the first connection to that socket.
+//
+// Entry points are WritePlist, Bootstrap, Bootout, LabelForStateDir,
+// PlistPath and ActivateSocket.
+//
+// Used by: cmd/barely (setup, uninstall, doctor) and internal/serve
+// (ActivateSocket).
 package launchd
 
 /*

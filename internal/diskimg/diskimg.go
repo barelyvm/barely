@@ -1,5 +1,11 @@
 // Package diskimg manages the sparse data disk (data.img): it is created at
-// the configured cap and extended to it before every boot.
+// the configured cap and extended to it before every boot, so raising
+// disk_max takes effect on the next start. The file is never shrunk here.
+//
+// Entry points are EnsureSize and Usage.
+//
+// Used by: internal/serve (EnsureSize before each boot, Usage for status) and
+// cmd/barely setup (Usage, to refuse lowering an existing disk).
 package diskimg
 
 import (
@@ -26,6 +32,8 @@ func EnsureSize(path string, capBytes uint64) error {
 	if uint64(info.Size()) >= capBytes {
 		return nil
 	}
+	// Truncate extends sparsely: no blocks are allocated until the guest
+	// writes, so a 100 GiB cap costs nothing on the host up front.
 	if err := f.Truncate(int64(capBytes)); err != nil {
 		return fmt.Errorf("diskimg: extending %s to %d bytes: %w", path, capBytes, err)
 	}

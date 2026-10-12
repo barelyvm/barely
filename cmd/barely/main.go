@@ -1,6 +1,17 @@
 // Command barely is the elastic Docker VM: run as a user it's the CLI, run by
 // launchd as "barely serve" it's the host process, which launches the separate
 // barelyvm helper as the VM process.
+//
+// The CLI side never touches the VM directly: it asks the host process over
+// control.sock (client.go), or dials docker.sock to make launchd boot the host
+// process on demand (lifecycle.go). "barely setup" is the one command that
+// installs things (binaries, guest image, launchd agent, Docker context,
+// socket symlink); "barely uninstall" reverses it. Every command's help, the
+// overview and the man page come from commandSpecs (help.go), so a new
+// subcommand needs a case in main's switch and a commandSpec entry.
+//
+// Used by: users in a terminal, launchd (as "barely serve", written into the
+// agent plist by setup), and the Makefile (as "barely man").
 package main
 
 import (

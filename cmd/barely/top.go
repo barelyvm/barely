@@ -31,6 +31,8 @@ func runTop(args []string) error {
 			continue
 		}
 		sc := bufio.NewScanner(resp.Body)
+		// The first event carries the whole footprint history, which outgrows
+		// bufio's default 64 KiB line limit.
 		sc.Buffer(make([]byte, 64<<10), 1<<20)
 		for sc.Scan() {
 			line := sc.Text()
@@ -42,9 +44,13 @@ func runTop(args []string) error {
 				continue
 			}
 			if len(ev.History) > 0 {
+				// Only the first event of a stream has History; later events
+				// extend it locally.
 				history = ev.History
 			} else if ev.State == "running" {
 				history = append(history, footprint.Sample{At: time.Now(), Bytes: ev.VMFootprint})
+				// 120 samples (two minutes at 1s) keeps the sparkline within one
+				// terminal row.
 				if len(history) > 120 {
 					history = history[len(history)-120:]
 				}

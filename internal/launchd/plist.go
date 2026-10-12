@@ -28,7 +28,8 @@ func LabelForStateDir(stateDir, defaultStateDir string) string {
 	return fmt.Sprintf("%s.%08x", defaultLabel, h.Sum32())
 }
 
-// AgentsDir is where per-user LaunchAgents live.
+// AgentsDir is where per-user LaunchAgents live (launchd loads them for the
+// logged-in user without root).
 func AgentsDir() (string, error) {
 	u, err := user.Current()
 	if err != nil {
@@ -46,7 +47,11 @@ func PlistPath(label string) (string, error) {
 	return filepath.Join(dir, label+".plist"), nil
 }
 
-// plistTemplate is the LaunchAgent plist template.
+// plistTemplate is the LaunchAgent plist template. launchd owns the docker
+// socket (mode 0600, SockPathMode 384 decimal) and launches "barely serve"
+// on the first connection; KeepAlive is off because the host process exits
+// on its own when idle and must stay down until the next connection, and
+// RunAtLoad is the start-at-login setting.
 const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -105,6 +110,8 @@ func WritePlist(label, barelyPath, stateDir, dockerSockPath, stderrPath string, 
 	return path, nil
 }
 
+// guiTarget is the launchctl domain for the current user's login session,
+// where LaunchAgents are loaded.
 func guiTarget() string {
 	return "gui/" + strconv.Itoa(os.Getuid())
 }
@@ -139,6 +146,8 @@ func Bootout(label string) error {
 	return fmt.Errorf("launchctl bootout: %s still loaded after 5s", label)
 }
 
+// alreadyGone recognises launchctl's output when the job isn't loaded, which
+// Bootout treats as success.
 func alreadyGone(out []byte) bool {
 	s := string(out)
 	return len(s) == 0 || strings.Contains(s, "Could not find") || strings.Contains(s, "No such process")

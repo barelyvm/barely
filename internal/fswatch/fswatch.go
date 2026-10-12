@@ -1,8 +1,15 @@
 //go:build darwin
 
-// Package fswatch turns macOS FSEvents under the folders bind-mounted into
-// running containers into the change records the guest's fsevent device
-// applies.
+// Package fswatch is how host file changes reach the guest. The shared
+// folders are virtiofs mounts whose server never notifies the guest of host-side
+// changes, so file watchers inside containers (hot reload, bundlers) would
+// never fire. fswatch turns macOS FSEvents under the folders bind-mounted into running containers
+// into the change records the guest's fsevent device applies.
+//
+// Entry points are New, Watcher.SetRoots and Watcher.Close.
+//
+// Used by: internal/serve, which feeds it the bind-mount sources of running
+// containers and ships each batch to the guest over the control channel.
 package fswatch
 
 import (
@@ -23,7 +30,8 @@ import (
 // enough that a save feels instant.
 const coalesce = 20 * time.Millisecond
 
-// Watcher watches a set of roots and calls send with coalesced batches.
+// Watcher watches a set of roots and calls send with coalesced batches. send
+// runs on the watcher's goroutine, so a slow send delays later batches.
 type Watcher struct {
 	send func([]proto.FsEvent)
 
@@ -63,11 +71,16 @@ func (w *Watcher) SetRoots(paths []string) {
 		real[i] = r.real
 	}
 	es := &fsevents.EventStream{
-		Paths:   real,
+		Paths: real,
+		// Small so a save reaches the guest quickly; coalesce does the
+		// batching. NoDefer delivers the first event of a burst at once
+		// instead of after Latency.
 		Latency: 10 * time.Millisecond,
 		Flags:   fsevents.FileEvents | fsevents.NoDefer,
 	}
 	if err := es.Start(); err != nil {
+		// Folders stay unwatched. w.roots is already set, so SetRoots with
+		// the same paths returns early and does not retry.
 		return
 	}
 	w.stream = es
@@ -92,6 +105,10 @@ func (w *Watcher) stopLocked() {
 	w.stream = nil
 }
 
+// run turns FSEvents batches into guest-path ops, flushing coalesce after
+// the first pending change; it exits when stop closes or the stream ends.
+// run turns FSEvents batches into guest-path ops, flushing coalesce after
+// the first pending change; it exits when stop closes or the stream ends.
 func (w *Watcher) run(es *fsevents.EventStream, roots []root, stop chan struct{}) {
 	pending := map[string]string{}
 	var flush <-chan time.Time
@@ -105,6 +122,7 @@ func (w *Watcher) run(es *fsevents.EventStream, roots []root, stop chan struct{}
 			}
 			for _, ev := range batch {
 				p := ev.Path
+				// fsevents reports paths relative to the volume root.
 				if !strings.HasPrefix(p, "/") {
 					p = "/" + p
 				}
@@ -164,6 +182,7 @@ func merge(prev, next string) string {
 	return next
 }
 
+// drain empties pending into the batch handed to send.
 func drain(pending map[string]string) []proto.FsEvent {
 	events := make([]proto.FsEvent, 0, len(pending))
 	for p, op := range pending {
@@ -175,6 +194,8 @@ func drain(pending map[string]string) []proto.FsEvent {
 	return events
 }
 
+// toGuest maps a real path FSEvents reported back to the path the guest
+// knows, or false when it is outside every root.
 func toGuest(roots []root, p string) (string, bool) {
 	for _, r := range roots {
 		if p == r.real || strings.HasPrefix(p, r.real+"/") {
@@ -184,6 +205,8 @@ func toGuest(roots []root, p string) (string, bool) {
 	return "", false
 }
 
+// collapse drops roots nested under another: the parent's stream already
+// covers them, and a second stream would duplicate every event.
 func collapse(paths []string) []root {
 	clean := make([]string, 0, len(paths))
 	for _, p := range paths {

@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// TestSettled pins the quiet-cache rule that gates reclaim: reclaiming while a
+// build is still filling the cache would make it re-read what it just cached.
+// Run with `go test ./cmd/barely-agent` on Linux (the file is linux-only).
 func TestSettled(t *testing.T) {
 	now := time.Now()
 	window := func(sizes ...uint64) []cacheSample {

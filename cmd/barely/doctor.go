@@ -69,6 +69,8 @@ func runDoctor(args []string) error {
 		if out, err := exec.Command("plutil", "-extract", "ProgramArguments.0", "raw", plist).Output(); err == nil {
 			bin := strings.TrimSpace(string(out))
 			switch {
+			// `go run` builds into a temp dir that is deleted when it exits, so an
+			// agent plist pointing there would break.
 			case strings.Contains(bin, "/go-build/"):
 				fmt.Printf("  runs %s — a temporary `go run` build; re-run barely setup to install a stable copy into ~/.barely/bin\n", bin)
 			default:

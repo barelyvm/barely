@@ -1,3 +1,6 @@
+// The suite protects the container-event to Expose/Unexpose bookkeeping
+// against a fake Exposer and a fake dockerd on a unix socket; no VM or
+// network is needed. Run with go test ./internal/portforward.
 package portforward
 
 import (
@@ -34,6 +37,8 @@ func (f *fakeExposer) Unexpose(protocol, local string) error {
 	return nil
 }
 
+// TestApplyExposesAndReplacesBindings pins that a container's published
+// ports are swapped, not accumulated, when dockerd republishes them.
 func TestApplyExposesAndReplacesBindings(t *testing.T) {
 	exp := newFakeExposer()
 	w := New("", "192.168.127.2", exp)
@@ -54,6 +59,8 @@ func TestApplyExposesAndReplacesBindings(t *testing.T) {
 	}
 }
 
+// TestReleaseUnexposesAllBindings pins that a stopped container leaves no
+// forward behind on the Mac.
 func TestReleaseUnexposesAllBindings(t *testing.T) {
 	exp := newFakeExposer()
 	w := New("", "192.168.127.2", exp)
@@ -68,6 +75,8 @@ func TestReleaseUnexposesAllBindings(t *testing.T) {
 	}
 }
 
+// TestCollapseDualStackMergesWildcardAndLoopbackPairs pins the dedupe that
+// avoids a phantom "already in use" on the IPv6 half of every published port.
 func TestCollapseDualStackMergesWildcardAndLoopbackPairs(t *testing.T) {
 	in := []binding{
 		{Protocol: "tcp", HostIP: "0.0.0.0", Port: "8080"},
@@ -94,6 +103,8 @@ func TestCollapseDualStackMergesWildcardAndLoopbackPairs(t *testing.T) {
 	}
 }
 
+// TestApplyExposesWildcardPairOnce pins the dedupe end to end: one Expose
+// per dual-stack pair.
 func TestApplyExposesWildcardPairOnce(t *testing.T) {
 	exp := newFakeExposer()
 	w := New("", "192.168.127.2", exp)
@@ -113,6 +124,8 @@ func TestApplyExposesWildcardPairOnce(t *testing.T) {
 	}
 }
 
+// TestApplyRecordsConflicts pins that a refused bind is recorded and cleared
+// once the same address is exposed successfully.
 func TestApplyRecordsConflicts(t *testing.T) {
 	exp := newFakeExposer()
 	exp.fail["tcp 0.0.0.0:8080"] = true
@@ -162,6 +175,9 @@ func fakeDockerd(t *testing.T, mux *http.ServeMux) string {
 	return sockPath
 }
 
+// TestReconcileExposesRunningContainersAndDropsStale pins the catch-up after
+// an events-stream reconnect: running containers are exposed, containers
+// that died meanwhile are released, and EXPOSEd-only ports are ignored.
 func TestReconcileExposesRunningContainersAndDropsStale(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/containers/json", func(w http.ResponseWriter, r *http.Request) {

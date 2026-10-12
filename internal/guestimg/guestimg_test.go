@@ -20,6 +20,8 @@ func writeImage(t *testing.T, guestDir, version string, protocol int) string {
 	return dir
 }
 
+// TestFindSkipsOlderProtocol pins that a newer-looking image with the wrong
+// protocol does not shadow an older usable one.
 func TestFindSkipsOlderProtocol(t *testing.T) {
 	guestDir := t.TempDir()
 	writeImage(t, guestDir, "2026.01.01.0000", 2)
@@ -34,6 +36,8 @@ func TestFindSkipsOlderProtocol(t *testing.T) {
 	}
 }
 
+// TestFindOnlyOldGuestsSaysMakeGuest pins the error a user sees after
+// upgrading barely without rebuilding the guest.
 func TestFindOnlyOldGuestsSaysMakeGuest(t *testing.T) {
 	guestDir := t.TempDir()
 	writeImage(t, guestDir, "2026.01.01.0000", 1)
@@ -44,6 +48,7 @@ func TestFindOnlyOldGuestsSaysMakeGuest(t *testing.T) {
 	}
 }
 
+// TestOpenRejectsOldGuest pins that Open accepts exactly the wanted protocol.
 func TestOpenRejectsOldGuest(t *testing.T) {
 	dir := writeImage(t, t.TempDir(), "2026.01.01.0000", 1)
 

@@ -70,12 +70,15 @@ func fetchStatus(paths state.Paths) (serve.StatusResponse, error) {
 	return st, nil
 }
 
-// controlPost POSTs path with no body and decodes the JSON reply, or the
-// control API's {"error": "..."} shape into a Go error.
+// controlPost POSTs path with no body for the control endpoints that only
+// act (restart); a status of 400 or above becomes an error carrying the
+// response body, and a success body is discarded.
 func controlPost(paths state.Paths, path string) error {
 	return controlPostWith(controlHTTP(paths), path)
 }
 
+// controlPostWith is controlPost with the caller's client, for endpoints like
+// /stop that outlast controlHTTP's timeout.
 func controlPostWith(client *http.Client, path string) error {
 	resp, err := client.Post("http://barely"+path, "application/json", nil)
 	if err != nil {

@@ -26,6 +26,9 @@ type shellProfile struct {
 	line string
 }
 
+// detectShellProfile picks the file setup and uninstall edit from $SHELL. bash
+// gets .bash_profile because Terminal.app starts bash as a login shell, which
+// never reads .bashrc.
 func detectShellProfile(dockerSock string) (shellProfile, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

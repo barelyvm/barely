@@ -24,6 +24,9 @@ type commandSpec struct {
 	flags    func() *flag.FlagSet
 }
 
+// commandSpecs is the help text for every dispatched command, in display
+// order. printOverview and renderManPage print a group heading whenever the
+// group changes, so entries of one group must stay adjacent.
 var commandSpecs = []commandSpec{
 	{
 		name:     "setup",
@@ -156,7 +159,8 @@ func lookupCommand(name string) (commandSpec, bool) {
 	return commandSpec{}, false
 }
 
-// runHelp implements "barely help [command]".
+// runHelp implements "barely help [command]". It has no caller: main handles
+// help itself before its dispatch switch.
 func runHelp(args []string) error {
 	if len(args) == 0 {
 		printOverview(os.Stdout)

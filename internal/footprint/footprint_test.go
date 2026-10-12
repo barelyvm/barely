@@ -1,3 +1,5 @@
+// The suite protects Read against the live proc_pid_rusage call (macOS only).
+// Run with go test ./internal/footprint.
 package footprint
 
 import (
@@ -7,6 +9,7 @@ import (
 	"time"
 )
 
+// TestReadSelf pins that Read returns a non-zero footprint for a live pid.
 func TestReadSelf(t *testing.T) {
 	b, err := Read(os.Getpid())
 	if err != nil {
@@ -18,6 +21,8 @@ func TestReadSelf(t *testing.T) {
 	t.Logf("footprint: %d bytes", b)
 }
 
+// TestReadOtherProcess pins that Read works on another process's pid, which
+// is how the VM process is measured from the host process.
 func TestReadOtherProcess(t *testing.T) {
 	cmd := exec.Command("sleep", "5")
 	if err := cmd.Start(); err != nil {

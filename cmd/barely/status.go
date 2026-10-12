@@ -26,6 +26,7 @@ func runStatus(args []string) error {
 		fmt.Println("state:  booting")
 		return nil
 	case "running":
+		// Falls out of the switch to the full report below.
 	default:
 		fmt.Printf("state:  %s (the host process is up; the VM boots on the next docker command)\n", st.State)
 		return nil

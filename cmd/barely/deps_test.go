@@ -7,6 +7,9 @@ import (
 	"testing"
 )
 
+// TestDanglingPluginsAndCredentialHelper pins the Docker Desktop leftovers
+// doctor and setup warn about, and that a missing docker CLI ends checkDeps
+// early. Needs no docker install: PATH is stubbed out.
 func TestDanglingPluginsAndCredentialHelper(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DOCKER_CONFIG", dir)
@@ -33,6 +36,10 @@ func TestDanglingPluginsAndCredentialHelper(t *testing.T) {
 	}
 }
 
+// TestEnsureBrewPluginDirKeepsOtherKeys protects the user's docker
+// config.json: setup edits it in place, so credsStore and currentContext must
+// survive and a second run must add nothing. Skips without Homebrew's plugin
+// dir.
 func TestEnsureBrewPluginDirKeepsOtherKeys(t *testing.T) {
 	if !fileExists(brewPluginDir) {
 		t.Skip("no Homebrew plugin dir on this machine")

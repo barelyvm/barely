@@ -1,3 +1,6 @@
+// The suite protects the in-process virtual network without a VM: a raw DHCP
+// exchange over Socketpair and the forwarder's Expose/Unexpose. Run with
+// go test ./internal/netstack.
 package netstack
 
 import (
@@ -14,6 +17,8 @@ import (
 	"barely/internal/vmtypes"
 )
 
+// TestDHCPOffer pins that the in-process DHCP server offers the guest its
+// fixed DeviceIP, which port forwarding targets.
 func TestDHCPOffer(t *testing.T) {
 	nw, err := New()
 	if err != nil {

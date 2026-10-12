@@ -1,5 +1,14 @@
-// Package proto is the control channel spoken between barely serve and barely-agent
-// over guest vsock port 1024.
+// Package proto is the wire protocol between the host process (barely serve)
+// and barely-agent, the guest's init. It owns the vsock port numbers, the
+// length-prefixed JSON framing of the control channel on port 1024, the
+// message types and payloads, and the session header that opens a shell
+// stream on port 1025.
+//
+// Entry points: Write, Read, New and Message.Decode for framing; Version
+// for the handshake.
+//
+// Used by: internal/control and internal/serve on the host, internal/fswatch
+// for FsEvent, cmd/barely-agent in the guest, cmd/barely for guest image checks.
 package proto
 
 import (
@@ -10,8 +19,16 @@ import (
 	"io"
 )
 
+// Version is the agent protocol version. The host and the guest's agent must
+// agree exactly: guestimg refuses images whose manifest agent_protocol
+// differs, and the hello exchange re-checks the running agent. Bump it when
+// a message or payload changes incompatibly, and keep the Makefile's
+// AGENT_PROTOCOL equal so `make guest` stamps the manifest to match.
 const Version = 3
 
+// Guest vsock ports. The guest agent listens on each; the host reaches them
+// by connecting to the unix sockets run/v1024, v1025 and v2375 (PortDocker is
+// the agent's proxy to dockerd).
 const (
 	PortControl = 1024
 	PortShell   = 1025
@@ -22,12 +39,17 @@ const (
 // either side allocate unbounded memory.
 const MaxFrame = 4 << 20
 
+// Message types. Requests carry a non-zero ID and get a reply of the same
+// type: hello, shutdown, set_time, fstrim, shell_open, shell_resize and
+// fs_events, all sent by the host. The guest sends ready, mem_stats and
+// shell_exit unsolicited with ID 0.
 const (
-	TypeHello       = "hello"
-	TypeReady       = "ready"
-	TypeShutdown    = "shutdown"
-	TypeMemStats    = "mem_stats"
-	TypeFsEvents    = "fs_events"
+	TypeHello    = "hello"
+	TypeReady    = "ready"
+	TypeShutdown = "shutdown"
+	TypeMemStats = "mem_stats"
+	TypeFsEvents = "fs_events"
+	// TypeFsRescan has no sender and no handler on either side.
 	TypeFsRescan    = "fs_rescan"
 	TypeSetTime     = "set_time"
 	TypeFstrim      = "fstrim"
@@ -45,15 +67,19 @@ type Message struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
+// Hello carries the host's protocol version; the agent rejects a mismatch.
 type Hello struct {
 	Protocol int `json:"protocol"`
 }
 
+// HelloReply carries the agent's protocol version and the guest image
+// version, so a mismatch error can say which image to rebuild.
 type HelloReply struct {
 	Protocol     int    `json:"protocol"`
 	GuestVersion string `json:"guest_version"`
 }
 
+// Ready is sent by the agent once dockerd answers on its socket.
 type Ready struct {
 	Dockerd bool `json:"dockerd"`
 }
@@ -108,6 +134,7 @@ type ShellExit struct {
 	Code    int `json:"code"`
 }
 
+// Write sends m as one frame: a 4-byte big-endian length, then the JSON body.
 func Write(w io.Writer, m Message) error {
 	body, err := json.Marshal(m)
 	if err != nil {
@@ -125,6 +152,8 @@ func Write(w io.Writer, m Message) error {
 	return err
 }
 
+// Read returns the next frame. A clean EOF before a frame starts is returned
+// as io.EOF so callers can tell a closed connection from a torn one.
 func Read(r io.Reader) (Message, error) {
 	var hdr [4]byte
 	if _, err := io.ReadFull(r, hdr[:]); err != nil {
@@ -136,6 +165,7 @@ func Read(r io.Reader) (Message, error) {
 	}
 	body := make([]byte, n)
 	if _, err := io.ReadFull(r, body); err != nil {
+		// The header arrived, so EOF here is a truncated frame, not a clean close.
 		if errors.Is(err, io.EOF) {
 			return Message{}, io.ErrUnexpectedEOF
 		}

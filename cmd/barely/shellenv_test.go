@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// TestShellProfileInstallRemove protects the user's shell profile: installing
+// twice leaves one block, and removing restores their own lines untouched.
 func TestShellProfileInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -42,6 +44,8 @@ func TestShellProfileInstallRemove(t *testing.T) {
 	}
 }
 
+// TestFishProfileIsItsOwnFile pins that fish gets a dedicated conf.d file
+// that uninstall deletes outright rather than editing a shared profile.
 func TestFishProfileIsItsOwnFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

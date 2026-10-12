@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	dockerSocket      = "/run/docker.sock"
+	dockerSocket = "/run/docker.sock"
+	// dockerDialTimeout bounds how long a client waits for dockerd to start
+	// listening; see spliceToDocker.
 	dockerDialTimeout = 60 * time.Second
 )
 

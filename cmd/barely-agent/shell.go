@@ -35,6 +35,8 @@ type shellSession struct {
 	stdoutR *os.File
 }
 
+// sessions holds shell_open requests from registration until the process
+// exits; shellMu guards it.
 var (
 	shellMu  sync.Mutex
 	sessions = map[int]*shellSession{}
@@ -59,6 +61,8 @@ func (a *agent) serveShell() error {
 	}
 }
 
+// handleShellConn starts the session named by the stream's header and
+// splices it to the host, or reports exit 127 if the process won't start.
 func handleShellConn(conn net.Conn) {
 	defer conn.Close()
 	session, err := proto.ReadSessionHeader(conn)
@@ -80,6 +84,7 @@ func handleShellConn(conn net.Conn) {
 		shellMu.Lock()
 		delete(sessions, int(session))
 		shellMu.Unlock()
+		// 127: the shell convention for "command could not be run".
 		sess.report(int(session), 127)
 		return
 	}
@@ -176,6 +181,8 @@ func (s *shellSession) report(session, code int) {
 	}
 }
 
+// exitCode maps a Wait error to a status; -1 means the process did not
+// exit normally (killed by a signal, or Wait itself failed).
 func exitCode(err error) int {
 	if err == nil {
 		return 0
@@ -207,7 +214,8 @@ func (s *shellSession) splice(conn net.Conn) {
 			s.stdinW.Close()
 			return
 		}
-		// An interactive client's input only ends when the client goes away.
+		// An interactive client's input only ends when the client goes away,
+		// so EOF here is a hangup, not a closed stdin.
 		if s.cmd.Process != nil {
 			s.cmd.Process.Signal(syscall.SIGHUP)
 		}

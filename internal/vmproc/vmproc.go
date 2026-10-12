@@ -3,6 +3,10 @@
 // process that calls it and exit()s it when the guest shuts down, so the
 // VM runs in a child the host process supervises rather than inside the
 // host process itself.
+//
+// Entry points: Start, then Process.Done, Wait and Stop.
+//
+// Used by: internal/serve.
 package vmproc
 
 import (
@@ -21,8 +25,8 @@ import (
 // Process is one running (or exited) VM process.
 type Process struct {
 	cmd       *exec.Cmd
-	netFD     int // the VM process's end of the net socketpair, passed as fd 3
-	deathW    *os.File
+	netFD     int      // the VM process's end of the net socketpair, passed as fd 3
+	deathW    *os.File // closing it gives the child EOF on fd 4, which makes barelyvm shut the guest down
 	exitErr   error
 	done      chan struct{}
 	stopOnce  sync.Once

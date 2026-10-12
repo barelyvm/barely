@@ -1,5 +1,6 @@
 // This file is the CLI's control API: HTTP+JSON over ~/.barely/control.sock, present only while
 // the host process runs.
+
 package serve
 
 import (
@@ -127,6 +128,7 @@ func (s *Server) buildStatus() StatusResponse {
 	return resp
 }
 
+// handleStatus implements GET /status for "barely status".
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.buildStatus())
 }
@@ -217,6 +219,9 @@ func (s *Server) containerStats() []ContainerStat {
 	return stats
 }
 
+// oneContainerStat takes a single non-streaming stats sample for one
+// container; the CPU percentage is derived from dockerd's pre-sample, so it
+// covers the interval dockerd itself measured, not the top refresh interval.
 func (s *Server) oneContainerStat(id string) (mem uint64, cpuPercent float64, err error) {
 	conn, err := net.DialTimeout("unix", s.paths.V2375(), 2*time.Second)
 	if err != nil {
@@ -276,6 +281,9 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
+	// exiting first: clients that reach ensureVM during or after the
+	// shutdown get errStopping instead of booting a VM into a process that
+	// is about to exit.
 	s.mu.Lock()
 	s.exiting = true
 	s.mu.Unlock()
@@ -284,6 +292,8 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
+	// After the flush: requestExit ends Run and the process, which would
+	// otherwise race the reply.
 	s.requestExit()
 }
 
@@ -294,6 +304,7 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
+	// Not marked exiting: the process stays up and boots again below.
 	s.shutdown()
 	if err := s.reloadConfig(); err != nil {
 		writeJSONError(w, err)

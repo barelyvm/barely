@@ -1,6 +1,12 @@
 // Package guestimg finds the guest image to boot: ~/.barely/guest/<version>/.
 // `make guest` installs new
-// versions there.
+// versions there. Only an image whose manifest agent_protocol equals the
+// host's proto.Version is bootable, so an old image left behind by an
+// upgrade is skipped or reported with a rebuild hint rather than booted.
+//
+// Entry points: Find, Open.
+//
+// Used by: internal/serve to boot, cmd/barely setup and doctor to check one exists.
 package guestimg
 
 import (
@@ -19,6 +25,8 @@ type Image struct {
 	Manifest vmtypes.GuestManifest
 }
 
+// Kernel, Initrd and RootImage are the files `make guest` puts in the image
+// directory; they fill the matching VMSpec fields.
 func (img Image) Kernel() string    { return filepath.Join(img.Dir, "Image") }
 func (img Image) Initrd() string    { return filepath.Join(img.Dir, "initrd.img") }
 func (img Image) RootImage() string { return filepath.Join(img.Dir, "root.img") }
@@ -37,6 +45,7 @@ func Find(guestDir string, wantProtocol int) (Image, error) {
 			versions = append(versions, e.Name())
 		}
 	}
+	// Newest first; Find returns the first image the host can use.
 	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
 
 	var lastErr error
@@ -62,6 +71,8 @@ func Open(dir string, wantProtocol int) (Image, error) {
 	if err != nil {
 		return Image{}, err
 	}
+	// Both mismatches are refused, but only the older one is fixed by
+	// rebuilding the image.
 	if m.AgentProtocol < wantProtocol {
 		return Image{}, fmt.Errorf("guestimg: guest image %s too old (agent_protocol %d, want %d) — run `make guest`", dir, m.AgentProtocol, wantProtocol)
 	}

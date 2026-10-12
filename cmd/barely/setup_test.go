@@ -9,6 +9,13 @@ import (
 	"barely/internal/state"
 )
 
+// Setup's tests run against temp state directories and a pipe standing in for
+// stdin, so they never touch ~/.barely, docker or launchd. Run with "go test
+// ./cmd/barely".
+
+// TestWriteConfigKeys pins that setup edits config.toml key by key: keys the
+// user set stay, and untouched caps stay absent so they keep following the
+// defaults.
 func TestWriteConfigKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 
@@ -54,6 +61,8 @@ func answer(t *testing.T, lines string) {
 	t.Cleanup(func() { os.Stdin = old })
 }
 
+// TestSetupCaps covers the memory and disk cap choices, including the rule
+// that a disk which already exists can be raised but never lowered.
 func TestSetupCaps(t *testing.T) {
 	def := config.Default()
 

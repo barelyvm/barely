@@ -43,6 +43,8 @@ func ensureRunning(paths state.Paths) error {
 	if _, err := io.WriteString(conn, "GET /_ping HTTP/1.1\r\nHost: barely\r\nConnection: close\r\n\r\n"); err != nil {
 		return fmt.Errorf("barely start: %w", err)
 	}
+	// The host process boots the VM before it proxies the first request on
+	// docker.sock, so this wait covers a cold boot.
 	conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
