@@ -336,6 +336,9 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 		select {
 		case <-s.vm.Done():
 			// Exited since we last checked; fall through and reboot.
+			if s.ctl != nil {
+				s.ctl.Close()
+			}
 			s.vm, s.ctl = nil, nil
 		default:
 			ctl := s.ctl
@@ -607,6 +610,9 @@ func (s *Server) watch(vm *vmproc.Process, stopPorts context.CancelFunc) {
 	// shutdown may already have cleared it, or ensureVM replaced it with a
 	// newer VM; only clear our own.
 	if s.vm == vm {
+		if s.ctl != nil {
+			s.ctl.Close()
+		}
 		s.vm, s.ctl = nil, nil
 	}
 	s.mu.Unlock()

@@ -50,12 +50,14 @@ func Start(helper string, spec vmtypes.VMSpec, netFD int, logw *os.File) (*Proce
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		netFile.Close()
 		deathR.Close()
 		deathW.Close()
 		return nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
+		netFile.Close()
 		deathR.Close()
 		deathW.Close()
 		return nil, fmt.Errorf("vmproc: starting %s run: %w", helper, err)
@@ -66,6 +68,7 @@ func Start(helper string, spec vmtypes.VMSpec, netFD int, logw *os.File) (*Proce
 
 	if err := json.NewEncoder(stdin).Encode(spec); err != nil {
 		cmd.Process.Kill()
+		cmd.Wait()
 		deathW.Close()
 		return nil, fmt.Errorf("vmproc: writing VMSpec: %w", err)
 	}

@@ -364,6 +364,9 @@ func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
 
 	if err := ctl.ShellOpen(session, req.Argv, req.TTY, req.Rows, req.Cols, req.Env, 30*time.Second); err != nil {
 		log.Printf("serve: handleShell: ShellOpen: %v", err)
+		s.shellExitsMu.Lock()
+		delete(s.shellExits, session)
+		s.shellExitsMu.Unlock()
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
