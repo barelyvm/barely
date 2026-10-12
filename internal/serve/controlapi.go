@@ -268,21 +268,23 @@ type dockerStats struct {
 	} `json:"precpu_stats"`
 }
 
-// handleStop implements POST /stop: clean shutdown now.
+// handleStop implements POST /stop: clean shutdown now. It answers once the
+// VM is down, so "barely stop" returning means it has stopped.
 // The host process exits once the response is flushed.
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
+	s.mu.Lock()
+	s.exiting = true
+	s.mu.Unlock()
+	s.shutdown()
 	writeJSON(w, struct{}{})
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
-	go func() {
-		s.shutdown()
-		s.requestExit()
-	}()
+	s.requestExit()
 }
 
 // handleRestart implements POST /restart: clean shutdown, then boot again

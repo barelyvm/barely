@@ -68,7 +68,9 @@ func runStop(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := controlPost(paths, "/stop"); err != nil {
+	// /stop answers once the guest has shut down, which can take longer than
+	// the default control timeout.
+	if err := controlPostWith(controlHTTPNoTimeout(paths), "/stop"); err != nil {
 		return err
 	}
 	fmt.Println("stopped")

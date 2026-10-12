@@ -310,9 +310,23 @@ func stopDockerd() {
 	unix.Sync()
 }
 
+// unmountDataDisk leaves ext4 on the data disk marked clean, so the next boot
+// mounts it without replaying the journal. A mount something still holds is
+// remounted read-only, which also leaves it clean.
+func unmountDataDisk() {
+	err := unix.Unmount(dataDir, 0)
+	if err == nil || err == unix.EINVAL {
+		return
+	}
+	if roErr := unix.Mount("", dataDir, "", unix.MS_REMOUNT|unix.MS_RDONLY, ""); roErr != nil {
+		log.Printf("data disk: unmount: %v; remount read-only: %v", err, roErr)
+	}
+}
+
 // powerOff powers the guest off. libkrun's shutdown path
 // expects the VM to exit on its own once the agent replies to "shutdown".
 func powerOff() {
+	unmountDataDisk()
 	unix.Sync()
 	_ = unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
 }

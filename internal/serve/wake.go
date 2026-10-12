@@ -17,6 +17,11 @@ import (
 // doesn't advance during sleep and would hide the gap.
 const wakeCheckInterval = 10 * time.Second
 
+// wakeLogMin is the shortest gap worth a log line. A sleeping Mac wakes
+// briefly about once a minute, and each of those is a gap too: the guest
+// clock is still resynced for every one, but only a real wake is logged.
+const wakeLogMin = 5 * time.Minute
+
 // wakeLoop handles Mac wake: on wake, resync the
 // guest clock.
 func (s *Server) wakeLoop(ctx context.Context) {
@@ -36,7 +41,9 @@ func (s *Server) wakeLoop(ctx context.Context) {
 		case <-ticker.C:
 			now := time.Now().Round(0)
 			if gap := now.Sub(last); gap > wakeCheckInterval*2 {
-				log.Printf("serve: detected a gap of %s (Mac wake), resyncing the guest clock", gap.Round(time.Second))
+				if gap >= wakeLogMin {
+					log.Printf("serve: detected a gap of %s (Mac wake), resyncing the guest clock", gap.Round(time.Second))
+				}
 				s.onWake()
 			}
 			last = now

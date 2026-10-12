@@ -6,6 +6,7 @@ package serve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -63,6 +64,7 @@ type Server struct {
 
 	mu        sync.Mutex
 	booting   bool
+	exiting   bool // set by /stop; ensureVM boots nothing from then on
 	cfg       vmtypes.Config
 	vm        *vmproc.Process
 	ctl       *control.Client
@@ -74,6 +76,10 @@ type Server struct {
 	shellExitsMu sync.Mutex
 	shellExits   map[int]<-chan int
 }
+
+// errStopping answers a client that reached the host process while it was
+// exiting. Its next attempt starts a fresh process.
+var errStopping = errors.New("serve: barely is stopping; run the command again")
 
 // Crash-loop guard: if the VM process exits unexpectedly this many times
 // within the window, stop rebooting it on new client connections and
@@ -275,6 +281,13 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 	defer s.bootMu.Unlock()
 
 	s.mu.Lock()
+	// A client that connected while the VM was shutting down has been waiting
+	// on bootMu. Booting for it now would start a VM in a process that is
+	// about to exit and take that VM down with it.
+	if s.exiting || (s.runCtx != nil && s.runCtx.Err() != nil) {
+		s.mu.Unlock()
+		return nil, errStopping
+	}
 	if s.vm != nil {
 		select {
 		case <-s.vm.Done():

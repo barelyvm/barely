@@ -74,7 +74,10 @@ func fetchStatus(paths state.Paths) (serve.StatusResponse, error) {
 // controlPost POSTs path with no body and decodes the JSON reply, or the
 // control API's {"error": "..."} shape into a Go error.
 func controlPost(paths state.Paths, path string) error {
-	client := controlHTTP(paths)
+	return controlPostWith(controlHTTP(paths), path)
+}
+
+func controlPostWith(client *http.Client, path string) error {
 	resp, err := client.Post("http://barely"+path, "application/json", nil)
 	if err != nil {
 		return fmt.Errorf("barely: host process isn't running (or isn't responding): %w", err)
