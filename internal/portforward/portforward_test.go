@@ -119,34 +119,24 @@ func TestApplyExposesWildcardPairOnce(t *testing.T) {
 	if len(exp.exposed) != 1 {
 		t.Fatalf("exposed = %v, want exactly one Expose call for a dual-stack publish", exp.exposed)
 	}
-	if conflicts := w.Conflicts(); len(conflicts) != 0 {
-		t.Fatalf("conflicts = %v, want none: the :: half is not a second listener", conflicts)
-	}
 }
 
-// TestApplyRecordsConflicts pins that a refused bind is recorded and cleared
-// once the same address is exposed successfully.
-func TestApplyRecordsConflicts(t *testing.T) {
+// TestApplyRetriesFailedBind pins that a refused bind exposes nothing and does
+// not stop a later apply from exposing the same address once it is free.
+func TestApplyRetriesFailedBind(t *testing.T) {
 	exp := newFakeExposer()
 	exp.fail["tcp 0.0.0.0:8080"] = true
 	w := New("", "192.168.127.2", exp)
 
 	w.apply("ctr1", []binding{{Protocol: "tcp", HostIP: "0.0.0.0", Port: "8080"}})
-
-	conflicts := w.Conflicts()
-	if _, ok := conflicts["tcp 0.0.0.0:8080"]; !ok {
-		t.Fatalf("conflicts = %v, want an entry for the failed bind", conflicts)
-	}
 	if len(exp.exposed) != 0 {
 		t.Fatalf("exposed = %v, want nothing exposed for a failed bind", exp.exposed)
 	}
 
-	// Once the conflict clears (the port frees up), a later apply
-	// succeeds and the conflict is dropped.
 	exp.fail["tcp 0.0.0.0:8080"] = false
 	w.apply("ctr1", []binding{{Protocol: "tcp", HostIP: "0.0.0.0", Port: "8080"}})
-	if conflicts := w.Conflicts(); len(conflicts) != 0 {
-		t.Fatalf("conflicts = %v, want empty once the bind succeeds", conflicts)
+	if len(exp.exposed) != 1 {
+		t.Fatalf("exposed = %v, want the bind exposed once the port is free", exp.exposed)
 	}
 }
 

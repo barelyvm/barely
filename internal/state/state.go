@@ -64,7 +64,7 @@ func (p Paths) BinDir() string { return filepath.Join(p.Root, "bin") }
 func (p Paths) DockerSock() string { return filepath.Join(p.Root, "docker.sock") }
 
 // ControlSock is the host process's HTTP control API, used by the barely CLI
-// (status, shell, restart, logs). Not a vsock end; the guest's control port is V1024.
+// (status, top, stop, restart, shell). Not a vsock end; the guest's control port is V1024.
 func (p Paths) ControlSock() string { return filepath.Join(p.Root, "control.sock") }
 
 func (p Paths) GuestDir() string { return filepath.Join(p.Root, "guest") }

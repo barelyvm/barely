@@ -109,9 +109,8 @@ type Watcher struct {
 	exposer  Exposer
 	deviceIP string
 
-	mu        sync.Mutex
-	byCtr     map[string][]binding
-	conflicts map[string]string // "protocol local" -> last bind error; see Conflicts
+	mu    sync.Mutex
+	byCtr map[string][]binding
 }
 
 // New dials v2375Path for each request; deviceIP is the guest's address on
@@ -126,10 +125,9 @@ func New(v2375Path, deviceIP string, exposer Exposer) *Watcher {
 				},
 			},
 		},
-		exposer:   exposer,
-		deviceIP:  deviceIP,
-		byCtr:     make(map[string][]binding),
-		conflicts: make(map[string]string),
+		exposer:  exposer,
+		deviceIP: deviceIP,
+		byCtr:    make(map[string][]binding),
 	}
 }
 
@@ -147,19 +145,6 @@ func (w *Watcher) Run(ctx context.Context) {
 		case <-time.After(reconnectDelay):
 		}
 	}
-}
-
-// Conflicts returns a copy of the last-seen bind error per "protocol
-// local". It has no production caller (status does not surface it); only
-// tests read it.
-func (w *Watcher) Conflicts() map[string]string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	out := make(map[string]string, len(w.conflicts))
-	for k, v := range w.conflicts {
-		out[k] = v
-	}
-	return out
 }
 
 // watchOnce runs one events-stream session. It reconciles first so
@@ -332,17 +317,10 @@ func (w *Watcher) apply(id string, want []binding) {
 	for _, b := range want {
 		local := b.local()
 		remote := net.JoinHostPort(w.deviceIP, b.Port)
-		key := b.Protocol + " " + local
 		if err := w.exposer.Expose(b.Protocol, local, remote); err != nil {
 			log.Printf("portforward: exposing %s/%s for container %s: %v", local, b.Protocol, shortID(id), err)
-			w.mu.Lock()
-			w.conflicts[key] = err.Error()
-			w.mu.Unlock()
 			continue
 		}
-		w.mu.Lock()
-		delete(w.conflicts, key)
-		w.mu.Unlock()
 		applied = append(applied, b)
 	}
 	if len(applied) == 0 {
@@ -364,9 +342,6 @@ func (w *Watcher) release(id string) {
 		if err := w.exposer.Unexpose(b.Protocol, local); err != nil {
 			log.Printf("portforward: unexposing %s/%s for container %s: %v", local, b.Protocol, shortID(id), err)
 		}
-		w.mu.Lock()
-		delete(w.conflicts, b.Protocol+" "+local)
-		w.mu.Unlock()
 	}
 }
 

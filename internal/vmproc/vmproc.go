@@ -25,7 +25,6 @@ import (
 // Process is one running (or exited) VM process.
 type Process struct {
 	cmd       *exec.Cmd
-	netFD     int      // the VM process's end of the net socketpair, passed as fd 3
 	deathW    *os.File // closing it gives the child EOF on fd 4, which makes barelyvm shut the guest down
 	exitErr   error
 	done      chan struct{}
@@ -74,7 +73,7 @@ func Start(helper string, spec vmtypes.VMSpec, netFD int, logw *os.File) (*Proce
 	}
 	stdin.Close()
 
-	p := &Process{cmd: cmd, netFD: netFD, deathW: deathW, done: make(chan struct{})}
+	p := &Process{cmd: cmd, deathW: deathW, done: make(chan struct{})}
 	go func() {
 		p.exitErr = cmd.Wait()
 		close(p.done)

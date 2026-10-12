@@ -83,7 +83,6 @@ func (s *Server) startControlAPI(ctx context.Context) error {
 	mux.HandleFunc("/restart", s.handleRestart)
 	mux.HandleFunc("/shell", s.handleShell)
 	mux.HandleFunc("/shell/", s.handleShellResize)
-	mux.HandleFunc("/logs", s.handleLogs)
 
 	srv := &http.Server{Handler: mux}
 	go func() {
@@ -458,58 +457,6 @@ func (s *Server) handleShellResize(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, struct{ Code int }{Code: code})
 	default:
 		http.NotFound(w, r)
-	}
-}
-
-// handleLogs implements GET /logs?source=serve|vm|console&follow=bool by
-// streaming the log file. Nothing in this repo calls it: "barely logs" reads
-// the same files directly, so that it works when the host process isn't
-// running.
-func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
-	path := s.logPath(r.URL.Query().Get("source"))
-	if path == "" {
-		http.Error(w, "unknown source", http.StatusBadRequest)
-		return
-	}
-	follow := r.URL.Query().Get("follow") == "true"
-	f, err := os.Open(path)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
-
-	flusher, _ := w.(http.Flusher)
-	io.Copy(w, f)
-	if flusher != nil {
-		flusher.Flush()
-	}
-	if !follow {
-		return
-	}
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-time.After(500 * time.Millisecond):
-			io.Copy(w, f)
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-	}
-}
-
-func (s *Server) logPath(source string) string {
-	switch source {
-	case "serve":
-		return s.paths.ServeLog()
-	case "vm":
-		return s.paths.VMLog()
-	case "console":
-		return s.paths.ConsoleLog()
-	default:
-		return ""
 	}
 }
 

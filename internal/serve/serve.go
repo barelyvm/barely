@@ -70,7 +70,6 @@ type Server struct {
 	ports      *portforward.Watcher
 	vmLog      *os.File
 	footHist   *footprint.History
-	lk         *lock.Lock
 
 	// clients and shellSessions count open docker.sock connections and
 	// open "barely shell" sessions respectively, for idle tracking.
@@ -216,7 +215,6 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 		return err
 	}
-	s.lk = lk
 	defer lk.Release()
 
 	ln, activated, err := launchd.ActivateSocket("docker")

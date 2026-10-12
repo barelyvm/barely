@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 )
 
 // commandSpec documents one barely subcommand. It backs "barely help", "barely
@@ -157,16 +156,6 @@ func lookupCommand(name string) (commandSpec, bool) {
 		}
 	}
 	return commandSpec{}, false
-}
-
-// runHelp implements "barely help [command]". It has no caller: main handles
-// help itself before its dispatch switch.
-func runHelp(args []string) error {
-	if len(args) == 0 {
-		printOverview(os.Stdout)
-		return nil
-	}
-	return printCommandHelp(os.Stdout, args[0])
 }
 
 // printOverview prints the short, grouped summary "barely help" (and bare

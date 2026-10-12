@@ -44,13 +44,11 @@ const MaxFrame = 4 << 20
 // fs_events, all sent by the host. The guest sends ready, mem_stats and
 // shell_exit unsolicited with ID 0.
 const (
-	TypeHello    = "hello"
-	TypeReady    = "ready"
-	TypeShutdown = "shutdown"
-	TypeMemStats = "mem_stats"
-	TypeFsEvents = "fs_events"
-	// TypeFsRescan has no sender and no handler on either side.
-	TypeFsRescan    = "fs_rescan"
+	TypeHello       = "hello"
+	TypeReady       = "ready"
+	TypeShutdown    = "shutdown"
+	TypeMemStats    = "mem_stats"
+	TypeFsEvents    = "fs_events"
 	TypeSetTime     = "set_time"
 	TypeFstrim      = "fstrim"
 	TypeShellOpen   = "shell_open"
