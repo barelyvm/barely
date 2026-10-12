@@ -171,5 +171,5 @@ push-formula:
 	mkdir -p $(TAP_DIR)/Formula
 	cp $(DIST)/barely.rb $(TAP_DIR)/Formula/barely.rb
 	git -C $(TAP_DIR) add Formula/barely.rb
-	git -C $(TAP_DIR) commit -m "barely $(VERSION)"
-	git -C $(TAP_DIR) push origin HEAD
+	git -C $(TAP_DIR) diff --cached --quiet || git -C $(TAP_DIR) commit -m "barely $(VERSION)"
+	git -C $(TAP_DIR) push -u origin HEAD
