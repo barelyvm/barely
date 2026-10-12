@@ -183,8 +183,9 @@ func mountDevPts() error {
 	return os.Symlink("pts/ptmx", "/dev/ptmx")
 }
 
-// mountDataDisk mounts vdb at /var/lib/docker, formatting it if that mount
-// fails, which is taken to mean first boot. No "discard" mount option: trims are
+// mountDataDisk mounts vdb at /var/lib/docker, formatting it first when it is
+// blank (first boot). A disk that holds data and won't mount fails the boot
+// instead: see isBlank. No "discard" mount option: trims are
 // explicit and lazy, triggered by the host over the control channel.
 func mountDataDisk() error {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
@@ -194,6 +195,18 @@ func mountDataDisk() error {
 	if err == nil {
 		growDataDisk()
 		return nil
+	}
+	disk, openErr := os.Open(dataDisk)
+	if openErr != nil {
+		return fmt.Errorf("mount: %v; %w", err, openErr)
+	}
+	blank, probeErr := isBlank(disk)
+	disk.Close()
+	if probeErr != nil {
+		return fmt.Errorf("mount: %v; reading %s: %w", err, dataDisk, probeErr)
+	}
+	if !blank {
+		return fmt.Errorf("mount %s: %w; the disk holds data, so it was not formatted. To start over with an empty disk, run `barely stop` and delete data.img in barely's state directory on the Mac", dataDisk, err)
 	}
 	// -E nodiscard: skip mke2fs's whole-device discard pass. No discard at
 	// all until the explicit, lazy fstrim.

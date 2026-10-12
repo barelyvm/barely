@@ -34,6 +34,9 @@ type Client struct {
 	nextID  atomic.Uint64
 	mu      sync.Mutex
 	pending map[uint64]chan proto.Message
+	// writeMu keeps one request's frame whole: proto.Write sends the length
+	// and the body as two writes, and requests come from several goroutines.
+	writeMu sync.Mutex
 
 	readyMu sync.Mutex
 	ready   bool
@@ -172,7 +175,10 @@ func (c *Client) Request(typ string, payload any, reply any, timeout time.Durati
 	c.mu.Lock()
 	c.pending[id] = ch
 	c.mu.Unlock()
-	if err := proto.Write(c.conn, msg); err != nil {
+	c.writeMu.Lock()
+	err = proto.Write(c.conn, msg)
+	c.writeMu.Unlock()
+	if err != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
