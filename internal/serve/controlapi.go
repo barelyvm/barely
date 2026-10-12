@@ -246,8 +246,14 @@ func (s *Server) oneContainerStat(id string) (mem uint64, cpuPercent float64, er
 	}
 	cpuDelta := float64(st.CPUStats.CPUUsage.Total - st.PreCPUStats.CPUUsage.Total)
 	sysDelta := float64(st.CPUStats.SystemUsage - st.PreCPUStats.SystemUsage)
+	// dockerd fills percpu_usage only on cgroup v1; the guest runs cgroup v2,
+	// where the CPU count comes as online_cpus.
+	cpus := st.CPUStats.OnlineCPUs
+	if cpus == 0 {
+		cpus = len(st.CPUStats.CPUUsage.PerCPU)
+	}
 	if sysDelta > 0 && cpuDelta > 0 {
-		cpuPercent = (cpuDelta / sysDelta) * float64(len(st.CPUStats.CPUUsage.PerCPU)) * 100
+		cpuPercent = (cpuDelta / sysDelta) * float64(cpus) * 100
 	}
 	return st.MemoryStats.Usage, cpuPercent, nil
 }
@@ -264,6 +270,7 @@ type dockerStats struct {
 			PerCPU []uint64 `json:"percpu_usage"`
 		} `json:"cpu_usage"`
 		SystemUsage uint64 `json:"system_cpu_usage"`
+		OnlineCPUs  int    `json:"online_cpus"`
 	} `json:"cpu_stats"`
 	PreCPUStats struct {
 		CPUUsage struct {
