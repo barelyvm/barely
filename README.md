@@ -58,34 +58,18 @@ Add `~/.barely/bin` to your `PATH` to run `barely` from anywhere.
 ## Setup
 
 ```sh
-go run ./cmd/barely setup   # or: make barely && ./out/bin/barely setup
+barely setup
 ```
 
-Setup walks through seven steps, saying what each one changes on your Mac
-before it does it, and asking wherever there's a choice:
+Setup saves the choices you make to `~/.barely/config.toml` (see [Config](#config)).
 
-1. **Check what barely needs**: the docker CLI, its compose and buildx plugins, any credential helper your Docker config names. Each missing piece comes with the command that installs it.
-2. **Install barely** into `~/.barely/bin` (barely, the signed `barelyvm` helper, libkrun).
-3. **Memory and disk caps**: asks how far the VM may grow (Enter keeps the defaults: half the Mac's RAM, 100G of disk). Sizes are typed like `12G` or `512M`. The disk cap can be raised later, not lowered. Also asks whether to leave images and volumes out of Time Machine backups, which is the default.
-4. **Start on demand**: a per-user launchd agent that owns `~/.barely/docker.sock`; nothing runs until the first connection. Asks whether to also boot at login.
-5. **Docker context**: creates a `barely` context and asks whether to make it current.
-6. **Default socket path**: asks whether to symlink `/var/run/docker.sock` to barely's socket (one `sudo`), for tools that open that path directly. If it belongs to another tool, it asks before replacing it.
-7. **Shell** (optional): asks whether to add `export DOCKER_HOST=…` to your zsh, bash or fish profile, which pins terminals to barely whatever the current context is.
+It also changes your Docker configuration. Each of these is optional:
 
-A choice given as a flag (`barely help setup` lists them) isn't asked; with
-`-defaults` setup asks nothing and every choice you didn't specify takes its
-default. `barely uninstall` reverses all of it.
+- Creates a Docker context named `barely`.
+- Links `/var/run/docker.sock` to barely's socket (needs `sudo`).
+- Sets `DOCKER_HOST` in your shell profile.
 
-After setup, plain `docker` commands just work:
-
-```sh
-docker run --rm hello-world
-```
-
-The first call boots the VM (a few seconds, cold); after
-`idle_timeout` (5 minutes by default) with no open clients and no running
-containers, every `barely` process exits — the next `docker` call starts
-everything again.
+`barely setup -defaults` takes the defaults without asking.
 
 ## CLI
 
