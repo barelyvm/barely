@@ -33,8 +33,6 @@ class Barely < Formula
         brew install docker docker-compose docker-buildx
       Then finish the install with:
         barely setup
-      It says what each step changes (launchd agent, Docker context,
-      /var/run/docker.sock symlink) and asks at each choice.
     EOS
   end
 
