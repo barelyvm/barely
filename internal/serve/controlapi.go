@@ -362,13 +362,11 @@ func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
 	s.shellSessions.Add(1)
 	defer s.shellSessions.Add(-1)
 
-	log.Printf("serve: handleShell: session %d argv %v tty %v", session, req.Argv, req.TTY)
 	if err := ctl.ShellOpen(session, req.Argv, req.TTY, req.Rows, req.Cols, req.Env, 30*time.Second); err != nil {
 		log.Printf("serve: handleShell: ShellOpen: %v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	log.Printf("serve: handleShell: session %d ShellOpen ok, dialing v1025", session)
 
 	guestConn, err := net.DialTimeout("unix", s.paths.V1025(), 30*time.Second)
 	if err != nil {
@@ -381,7 +379,6 @@ func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	log.Printf("serve: handleShell: session %d header written, hijacking", session)
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
@@ -416,11 +413,8 @@ func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
 }
 
 func halfCloseWrite(conn net.Conn) {
-	hc, ok := conn.(interface{ CloseWrite() error })
-	log.Printf("serve: halfCloseWrite: type %T ok=%v", conn, ok)
-	if ok {
-		err := hc.CloseWrite()
-		log.Printf("serve: halfCloseWrite: CloseWrite err=%v", err)
+	if hc, ok := conn.(interface{ CloseWrite() error }); ok {
+		hc.CloseWrite()
 	}
 }
 
