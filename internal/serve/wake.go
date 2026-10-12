@@ -17,11 +17,6 @@ import (
 // doesn't advance during sleep and would hide the gap.
 const wakeCheckInterval = 10 * time.Second
 
-// wakeLogMin is the shortest gap worth a log line. A sleeping Mac wakes
-// briefly about once a minute, and each of those is a gap too: the guest
-// clock is still resynced for every one, but only a real wake is logged.
-const wakeLogMin = 5 * time.Minute
-
 // wakeLoop pushes the host time into the guest after the Mac wakes, because
 // the guest clock falls behind while the host sleeps. SIGUSR1 triggers the
 // same resync by hand.
@@ -37,15 +32,11 @@ func (s *Server) wakeLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-usr1:
-			log.Print("serve: SIGUSR1, resyncing the guest clock")
 			s.onWake()
 		case <-ticker.C:
 			// Round(0) strips the monotonic reading; see wakeCheckInterval.
 			now := time.Now().Round(0)
-			if gap := now.Sub(last); gap > wakeCheckInterval*2 {
-				if gap >= wakeLogMin {
-					log.Printf("serve: detected a gap of %s (Mac wake), resyncing the guest clock", gap.Round(time.Second))
-				}
+			if now.Sub(last) > wakeCheckInterval*2 {
 				s.onWake()
 			}
 			last = now
