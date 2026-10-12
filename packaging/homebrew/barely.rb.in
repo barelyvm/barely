@@ -8,10 +8,10 @@ class Barely < Formula
   # barely itself is Apache-2.0; the guest image carries a Linux kernel.
   license all_of: ["Apache-2.0", "GPL-2.0-only"]
 
+  # No dependency on the docker CLI: many people already have one that
+  # Homebrew can't see (Docker Desktop's), and depending on Homebrew's would
+  # install a second. The caveats and `barely setup` say how to get one.
   depends_on arch: :arm64
-  depends_on "docker"
-  depends_on "docker-buildx"
-  depends_on "docker-compose"
   depends_on macos: :sonoma
 
   def install
@@ -29,7 +29,9 @@ class Barely < Formula
 
   def caveats
     <<~EOS
-      Finish the install with:
+      barely needs the docker CLI. If you don't have one:
+        brew install docker docker-compose docker-buildx
+      Then finish the install with:
         barely setup
       It says what each step changes (launchd agent, Docker context,
       /var/run/docker.sock symlink) and asks at each choice.
