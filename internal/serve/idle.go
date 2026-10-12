@@ -35,6 +35,11 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 			}
 			if elapsed := time.Since(since); elapsed >= time.Duration(s.cfg.IdleTimeout) {
 				log.Printf("serve: idle for %s, shutting down", elapsed.Round(time.Second))
+				// Set before the shutdown, as /stop does: a client that connects
+				// while the VM is going down must not boot one in this process.
+				s.mu.Lock()
+				s.exiting = true
+				s.mu.Unlock()
 				// VM down first, then end Run: the process exits only once there is
 				// no guest left. launchd starts a new one on the next docker.sock
 				// connection.

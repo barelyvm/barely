@@ -93,7 +93,7 @@ type Server struct {
 	// anything is busy; checkIdle starts the clock.
 	mu        sync.Mutex
 	booting   bool
-	exiting   bool // set by /stop; ensureVM boots nothing from then on
+	exiting   bool // set by /stop and idle shutdown; ensureVM boots nothing from then on
 	cfg       vmtypes.Config
 	vm        *vmproc.Process
 	ctl       *control.Client
