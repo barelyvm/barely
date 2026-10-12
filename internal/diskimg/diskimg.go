@@ -2,10 +2,11 @@
 // the configured cap and extended to it before every boot, so raising
 // disk_max takes effect on the next start. The file is never shrunk here.
 //
-// Entry points are EnsureSize and Usage.
+// Entry points are EnsureSize, Usage and SetBackup.
 //
-// Used by: internal/serve (EnsureSize before each boot, Usage for status) and
-// cmd/barely setup (Usage, to refuse lowering an existing disk).
+// Used by: internal/serve (EnsureSize and SetBackup before each boot, Usage
+// for status) and cmd/barely setup (Usage, to refuse lowering an existing
+// disk; SetBackup).
 package diskimg
 
 import (

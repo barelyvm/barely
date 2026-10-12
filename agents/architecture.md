@@ -61,4 +61,4 @@ Three pieces, in three places:
 
 Everything lives under `~/.barely` (`internal/state`): `bin/` (installed binaries), `guest/<version>/` (guest images), `data.img`, `config.toml`, `logs/`, `run/` (the lock and the host ends of the vsock ports), and the two sockets, `docker.sock` and `control.sock`.
 
-Config keys are `memory_max`, `cpus`, `disk_max`, `idle_timeout`, `shares` and `start_at_login`. The host process reads the file at start and on restart; the VM process and the guest never read it.
+Config keys are `memory_max`, `cpus`, `disk_max`, `idle_timeout`, `shares`, `start_at_login` and `backup`. The data disk and guest images are left out of Time Machine unless `backup` is set. The host process reads the file at start and on restart; the VM process and the guest never read it.

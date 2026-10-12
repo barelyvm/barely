@@ -124,6 +124,9 @@ type Config struct {
 	IdleTimeout  Duration `toml:"idle_timeout"`
 	Shares       []string `toml:"shares"`
 	StartAtLogin bool     `toml:"start_at_login"`
+	// Backup includes the data disk in Time Machine backups. Off by default:
+	// see diskimg.SetBackup.
+	Backup bool `toml:"backup"`
 }
 
 // GuestManifest is manifest.json, written by `make guest` into each guest

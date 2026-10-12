@@ -432,6 +432,10 @@ func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 		return nil, nil, fmt.Errorf("serve: %w", err)
 	}
 	log.Printf("serve: boot: +%s data.img ready", time.Since(bootStart).Round(time.Millisecond))
+	// Applied on every boot so a changed backup setting takes effect.
+	if err := diskimg.SetBackup(s.paths.DataImage(), cfg.Backup); err != nil {
+		log.Printf("serve: %v", err)
+	}
 
 	// In Cmdline, page_reporting is how the guest hands freed pages back to
 	// the host (elastic memory); the order is the smallest block size reported.

@@ -28,7 +28,7 @@ func TestWriteConfigKeys(t *testing.T) {
 	if err := os.WriteFile(path, []byte("cpus = 2\nmemory_max = \"4GiB\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeConfigKeys(path, map[string]string{"memory_max": "12GiB"}); err != nil {
+	if err := writeConfigKeys(path, map[string]any{"memory_max": "12GiB"}); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := config.Load(path)

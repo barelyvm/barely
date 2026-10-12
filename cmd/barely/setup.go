@@ -34,6 +34,7 @@ type setupFlags struct {
 	shellEnv      *bool
 	memoryMax     *string
 	diskMax       *string
+	backup        *bool
 	defaults      *bool
 	from          *string
 }
@@ -48,6 +49,7 @@ func newSetupFlags() *setupFlags {
 	f.shellEnv = fs.Bool("shell-env", false, "pin docker to barely in your shell profile with DOCKER_HOST")
 	f.memoryMax = fs.String("memory-max", "", "memory cap for the VM, e.g. 8G (default: keep the current one)")
 	f.diskMax = fs.String("disk-max", "", "disk cap for the VM, e.g. 100G; an existing disk can be raised, not lowered (default: keep the current one)")
+	f.backup = fs.Bool("backup", false, "back up images and volumes with Time Machine (default: left out)")
 	f.defaults = fs.Bool("defaults", false, "ask nothing: every choice not given as a flag takes its default")
 	f.from = fs.String("from", "", "directory holding the signed barelyvm and libkrun.1.dylib to install (default: next to this barely, else ./out/bin)")
 	return f
@@ -192,6 +194,7 @@ func runSetup(args []string) error {
 	if err := setupCaps(ui, flags, paths); err != nil {
 		return fmt.Errorf("barely setup: %w", err)
 	}
+	setupBackups(ui, flags, paths)
 
 	defaultDir, err := state.DefaultDir()
 	if err != nil {
@@ -279,7 +282,7 @@ func setupCaps(ui *setupUI, flags *setupFlags, paths state.Paths) error {
 	if err != nil {
 		return err
 	}
-	changed := map[string]string{}
+	changed := map[string]any{}
 
 	memoryMax := cfg.MemoryMax
 	if *flags.memoryMax != "" {
@@ -336,10 +339,52 @@ func setupCaps(ui *setupUI, flags *setupFlags, paths state.Paths) error {
 	return nil
 }
 
+// setupBackups settles whether images and volumes are backed up, applies it to
+// what is already on disk and says what it is, since leaving the data disk out
+// of Time Machine is not something a user would guess. A new data disk gets
+// the same treatment at its first boot. Failing here is not worth failing
+// setup over.
+func setupBackups(ui *setupUI, flags *setupFlags, paths state.Paths) {
+	cfg, err := config.Load(paths.Config())
+	if err != nil {
+		logLine("warn", "backups", err.Error())
+		return
+	}
+	backup := cfg.Backup
+	if ui.given["backup"] {
+		backup = *flags.backup
+	} else if ui.asks("backup") {
+		backup = !ui.ask("Leave images and volumes out of Time Machine backups? They are one large file that changes whenever a container writes.", !cfg.Backup)
+	}
+	if backup != cfg.Backup {
+		if err := writeConfigKeys(paths.Config(), map[string]any{"backup": backup}); err != nil {
+			logLine("warn", "backups", err.Error())
+			return
+		}
+		cfg.Backup = backup
+	}
+	// Guest images are reinstalled from the release or rebuilt; never backed up.
+	if err := diskimg.SetBackup(paths.GuestDir(), false); err != nil {
+		logLine("warn", "backups", err.Error())
+		return
+	}
+	if fileExists(paths.DataImage()) {
+		if err := diskimg.SetBackup(paths.DataImage(), cfg.Backup); err != nil {
+			logLine("warn", "backups", err.Error())
+			return
+		}
+	}
+	if cfg.Backup {
+		logLine("done", "backups", "images and volumes are included in Time Machine")
+		return
+	}
+	logLine("done", "backups", "images and volumes are left out of Time Machine")
+}
+
 // writeConfigKeys sets keys in the config file at path, keeping whatever
 // else is there, and creates the file if needed. With no keys it does
 // nothing.
-func writeConfigKeys(path string, keys map[string]string) error {
+func writeConfigKeys(path string, keys map[string]any) error {
 	if len(keys) == 0 {
 		return nil
 	}

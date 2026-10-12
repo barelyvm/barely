@@ -33,7 +33,7 @@ var commandSpecs = []commandSpec{
 		synopsis: "barely setup [flags]",
 		short:    "Install barely and point Docker at it, step by step",
 		long: "Walks through each check and each change it makes: the docker CLI pieces barely needs, installing " +
-			"barely into ~/.barely/bin, the memory and disk caps, the launchd agent that starts the VM on demand, the Docker context, the " +
+			"barely into ~/.barely/bin, the memory and disk caps, whether images and volumes are backed up, the launchd agent that starts the VM on demand, the Docker context, the " +
 			"/var/run/docker.sock symlink, and an optional DOCKER_HOST line in your shell profile. It explains " +
 			"each step and asks at each choice you didn't give as a flag. With -defaults it asks nothing and " +
 			"every choice you didn't specify takes its default.",

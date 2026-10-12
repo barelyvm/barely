@@ -55,7 +55,7 @@ before it does it, and asking wherever there's a choice:
 
 1. **Check what barely needs**: the docker CLI, its compose and buildx plugins, any credential helper your Docker config names. Each missing piece comes with the command that installs it.
 2. **Install barely** into `~/.barely/bin` (barely, the signed `barelyvm` helper, libkrun).
-3. **Memory and disk caps**: asks how far the VM may grow (Enter keeps the defaults: half the Mac's RAM, 100G of disk). Sizes are typed like `12G` or `512M`. The disk cap can be raised later, not lowered.
+3. **Memory and disk caps**: asks how far the VM may grow (Enter keeps the defaults: half the Mac's RAM, 100G of disk). Sizes are typed like `12G` or `512M`. The disk cap can be raised later, not lowered. Also asks whether to leave images and volumes out of Time Machine backups, which is the default.
 4. **Start on demand**: a per-user launchd agent that owns `~/.barely/docker.sock`; nothing runs until the first connection. Asks whether to also boot at login.
 5. **Docker context**: creates a `barely` context and asks whether to make it current.
 6. **Default socket path**: asks whether to symlink `/var/run/docker.sock` to barely's socket (one `sudo`), for tools that open that path directly. If it belongs to another tool, it asks before replacing it.
@@ -104,6 +104,7 @@ disk_max = "100G"      # can be raised later, not lowered
 idle_timeout = "5m"    # 0 disables idle shutdown
 shares = ["/Users", "/Volumes", "/private", "/tmp", "/var/folders"]
 start_at_login = false
+backup = false         # true includes images and volumes in Time Machine backups
 ```
 
 Changes apply on the next VM boot, or immediately with `barely restart`.
