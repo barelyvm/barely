@@ -72,8 +72,9 @@ type closeWriter interface {
 	CloseWrite() error
 }
 
-// closeWrite half-closes conn's write side once its read side has hit EOF,
-// so the peer sees EOF instead of hanging on a full-duplex stream.
+// closeWrite half-closes conn's write side once the connection being copied
+// into it has hit EOF, so the peer sees EOF instead of hanging on a
+// full-duplex stream.
 func closeWrite(conn net.Conn) {
 	if cw, ok := conn.(closeWriter); ok {
 		cw.CloseWrite()

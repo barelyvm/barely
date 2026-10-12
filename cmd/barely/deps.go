@@ -147,7 +147,7 @@ func logLine(status, name, detail string) {
 }
 
 // printDeps shows checkDeps' result for doctor and setup; the fatal return is
-// what makes setup stop before it changes anything.
+// what makes setup stop before it installs anything.
 func printDeps(deps []dep) (fatal bool) {
 	for _, d := range deps {
 		status := "ok"

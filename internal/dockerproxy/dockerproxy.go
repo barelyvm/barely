@@ -50,7 +50,7 @@ func Splice(client net.Conn, v2375Path string, dialTimeout time.Duration) error 
 
 // halfClose propagates EOF on src -> dst as a write-close on dst. A conn
 // without half-close support is closed fully, which is the only way left to
-// signal EOF to the peer; src is unused. Both ends are *net.UnixConn in
+// signal EOF to the peer. Both ends are *net.UnixConn in
 // practice, so the fallback is not expected to run.
 func halfClose(dst, _ net.Conn) {
 	if hc, ok := dst.(halfCloser); ok {

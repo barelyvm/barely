@@ -194,11 +194,11 @@ func exitCode(err error) int {
 	return -1
 }
 
-// splice connects conn to the session's PTY or stdin/stdout pipes. Input
-// reaching EOF just closes the process's stdin (a one-off command has no
-// input at all); the session ends when the process's output ends. Only a
-// failed write back to the client means it's gone, which hangs the
-// process up with SIGHUP.
+// splice connects conn to the session's PTY or stdin/stdout pipes. Without
+// a PTY, input reaching EOF just closes the process's stdin (a one-off
+// command has no input at all) and only a failed write back to the client
+// means it's gone; the session ends when the process's output ends. A gone
+// client hangs the process up with SIGHUP.
 func (s *shellSession) splice(conn net.Conn) {
 	var r io.Reader
 	var w io.Writer
@@ -223,6 +223,8 @@ func (s *shellSession) splice(conn net.Conn) {
 
 	_, err := io.Copy(conn, r)
 	var pathErr *os.PathError
+	// EIO is how a PTY master reports that the process closed its end: the
+	// normal end of output, not a lost client.
 	clientGone := err != nil && !(errors.As(err, &pathErr) && errors.Is(pathErr.Err, syscall.EIO))
 	if clientGone && s.cmd.Process != nil {
 		s.cmd.Process.Signal(syscall.SIGHUP)

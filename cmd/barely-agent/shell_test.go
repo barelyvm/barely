@@ -10,12 +10,11 @@ import (
 	"barely/internal/proto"
 )
 
-// A one-off command's output only EOFs once the agent's splice (which
-// waits on both directions, like the Docker proxy's) sees the client side
-// close too — which, over the real vsock stream, the host does once it
-// relays shell_exit to the CLI. This test plays the host's part: it reads
-// the process's output concurrently, waits for shell_exit on the control
-// pipe, then closes the session stream, same as the host would.
+// TestShellOneOffCommand pins the non-PTY path of "barely shell" end to end,
+// with the test playing the host's part: after shell_open, the session
+// stream's header starts the process, its exit code arrives as shell_exit on
+// the control connection, and its output arrives on the stream. Runs on any
+// platform; nothing on this path is Linux-only.
 func TestShellOneOffCommand(t *testing.T) {
 	ctlConn, ctlPeer := net.Pipe()
 	defer ctlConn.Close()
@@ -70,7 +69,7 @@ func TestShellOneOffCommand(t *testing.T) {
 }
 
 // TestShellResizeUnknownSession pins that a resize for a session that never
-// opened or already exited is an error reply rather than silently ignored.
+// opened or already exited is an error rather than silently ignored.
 func TestShellResizeUnknownSession(t *testing.T) {
 	if err := resizeShell(99999, 24, 80); err == nil {
 		t.Fatal("expected error for unknown session")

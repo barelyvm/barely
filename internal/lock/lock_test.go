@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// TestAcquireRelease pins the single-instance guarantee: while one Acquire is
+// held a second on the same path gets ErrHeld (each Acquire opens its own file
+// description, so flock conflicts even within one process), and Release makes
+// the path acquirable again. It does not cover release on process death.
 func TestAcquireRelease(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "serve.lock")
 

@@ -126,17 +126,16 @@ func Bootstrap(path string) error {
 }
 
 // Bootout removes label from launchd (launchctl bootout). Not finding it
-// loaded isn't an error: uninstall should be idempotent.
-//
-// launchctl bootout returns before launchd has finished removing the job,
-// and a bootstrap of the same label in that window fails with "5:
-// Input/output error", so wait until the job is really gone.
+// loaded isn't an error: uninstall and a re-run of setup should be idempotent.
 func Bootout(label string) error {
 	target := guiTarget() + "/" + label
 	out, err := exec.Command("launchctl", "bootout", target).CombinedOutput()
 	if err != nil && !alreadyGone(out) {
 		return fmt.Errorf("launchctl bootout: %w: %s", err, out)
 	}
+	// launchctl bootout returns before launchd has finished removing the job,
+	// and a bootstrap of the same label in that window fails with "5:
+	// Input/output error", so wait until the job is really gone.
 	for i := 0; i < 50; i++ {
 		if exec.Command("launchctl", "print", target).Run() != nil {
 			return nil

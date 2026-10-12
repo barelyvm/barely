@@ -48,7 +48,8 @@ func TestFindOnlyOldGuestsSaysMakeGuest(t *testing.T) {
 	}
 }
 
-// TestOpenRejectsOldGuest pins that Open accepts exactly the wanted protocol.
+// TestOpenRejectsOldGuest pins that Open refuses an older protocol as too old
+// and accepts the wanted one.
 func TestOpenRejectsOldGuest(t *testing.T) {
 	dir := writeImage(t, t.TempDir(), "2026.01.01.0000", 1)
 

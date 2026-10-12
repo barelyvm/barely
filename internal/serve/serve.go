@@ -49,10 +49,11 @@ import (
 
 // controlDialTimeout bounds the whole wait for the guest agent to answer hello
 // after the VM process starts; helloAttemptTimeout bounds each try.
-// dockerDialTimeout is how long a client waits for dockerd's vsock port on a
-// cold start. shutdownGrace is how long the VM process gets to power off after
-// the agent is told to shut down, before SIGTERM; shutdownKill is the further
-// wait before SIGKILL.
+// dockerDialTimeout is how long a docker.sock client's splice retries dialing
+// run/v2375, the host end of the guest's docker port. shutdownGrace is spent
+// twice in a shutdown: first as the wait for the agent to stop dockerd and
+// acknowledge, then as how long the VM process gets to exit before SIGTERM;
+// shutdownKill is the further wait before SIGKILL.
 const (
 	controlDialTimeout  = 60 * time.Second
 	helloAttemptTimeout = 5 * time.Second
@@ -269,14 +270,17 @@ func (s *Server) Run(ctx context.Context) error {
 
 // handleClient serves one docker.sock connection: the VM boots on demand
 // inside the client's first request, then the connection is spliced to
-// dockerd. The deferred client count keeps idle shutdown away while it is open.
+// dockerd.
 func (s *Server) handleClient(ctx context.Context, client net.Conn) {
 	acceptedAt := time.Now()
 	defer client.Close()
+	// Counted until the connection closes, which keeps idle shutdown away
+	// while it is open.
 	s.clients.Add(1)
 	defer s.clients.Add(-1)
-	// Sampled before ensureVM so only the connection that triggers a boot
-	// logs the cold-start time.
+	// Sampled before ensureVM so a connection that found the VM already up
+	// logs no cold-start time. Every connection that arrives during a boot
+	// logs one, not only the one that triggered it.
 	wasRunning := s.vmRunning()
 	if _, err := s.ensureVM(ctx); err != nil {
 		log.Print(err)
@@ -311,6 +315,7 @@ func writeDockerError(client net.Conn, err error) {
 // the connected control-channel client. Every path that needs a guest (docker
 // clients, shell, restart) funnels through here, so concurrent callers share
 // one boot: the first holds bootMu while booting and the rest find it running.
+// If that boot fails, each waiting caller tries its own in turn.
 func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 	s.bootMu.Lock()
 	defer s.bootMu.Unlock()
@@ -335,8 +340,9 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 		}
 	}
 	// Crash-loop guard: refuse to boot again until old crashes age out of
-	// crashLoopWindow, so a VM that dies on every boot doesn't spin for as
-	// long as clients keep reconnecting.
+	// crashLoopWindow, so a VM that keeps dying once booted doesn't spin for
+	// as long as clients keep reconnecting. A VM that exits before hello is
+	// not counted: watch only starts after a successful boot.
 	if n := s.recentCrashes(); n >= crashLoopCount {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("serve: VM process crashed %d times in the last %s, not retrying automatically; see %s", n, crashLoopWindow, s.paths.ConsoleLog())
@@ -359,7 +365,7 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 	if runCtx == nil {
 		runCtx = context.Background()
 	}
-	// The per-VM loops share one context: watch cancels it when the VM
+	// The per-VM loops started here share one context: watch cancels it when the VM
 	// process exits so none outlives its guest, and the next boot starts a
 	// fresh set.
 	portsCtx, stopPorts := context.WithCancel(runCtx)
@@ -374,8 +380,8 @@ func (s *Server) ensureVM(ctx context.Context) (*control.Client, error) {
 
 // boot starts the barelyvm helper with a fresh VMSpec and returns once the
 // guest agent has answered hello on the control channel. Only ensureVM calls
-// it, with bootMu held. dockerd is usually not up yet at return; clients wait
-// for it in dockerproxy.Splice's dial retry.
+// it, with bootMu held. dockerd is usually not up yet at return; a client's
+// connection waits for it in the guest agent's docker proxy.
 func (s *Server) boot() (*vmproc.Process, *control.Client, error) {
 	bootStart := time.Now()
 	helper, err := FindHelper(s.barelyPath, s.paths.BinDir())

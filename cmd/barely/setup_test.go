@@ -13,9 +13,8 @@ import (
 // stdin, so they never touch ~/.barely, docker or launchd. Run with "go test
 // ./cmd/barely".
 
-// TestWriteConfigKeys pins that setup edits config.toml key by key: keys the
-// user set stay, and untouched caps stay absent so they keep following the
-// defaults.
+// TestWriteConfigKeys pins that setup edits config.toml key by key: a given
+// key is replaced, keys the user set stay, and no keys writes no file.
 func TestWriteConfigKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 

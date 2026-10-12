@@ -18,7 +18,7 @@ import (
 
 // netFD and parentDeathFD are the fd numbers the host process hands barelyvm
 // (internal/vmproc ExtraFiles): the guest NIC's socket and a pipe that closes
-// when the host process dies.
+// when the host process dies or stops the VM (vmproc Process.Stop).
 const (
 	netFD         = 3
 	parentDeathFD = 4
@@ -77,8 +77,8 @@ func runVM() error {
 	}()
 
 	// fd 4 is the read end of a pipe only the host process's write end
-	// holds; EOF means the host process died, so there's never an
-	// orphaned VM.
+	// holds; EOF means the host process died or closed it to stop the VM
+	// (vmproc Process.Stop), so there's never an orphaned VM.
 	go func() {
 		io.Copy(io.Discard, os.NewFile(uintptr(parentDeathFD), "parent-death"))
 		requestShutdown("parent process exited")

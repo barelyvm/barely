@@ -29,8 +29,11 @@ func newUninstallFlags() *uninstallFlags {
 	return f
 }
 
-// runUninstall implements "barely uninstall":
-// reverses all of setup and, with -purge, deletes the state directory.
+// runUninstall implements "barely uninstall": removes what setup put outside
+// the state directory (launchd agent, shell profile block, Docker context,
+// socket symlink) plus the installed binaries, and with -purge deletes the
+// state directory too. The cliPluginsExtraDirs entry setup may have added to
+// docker's config.json stays.
 func runUninstall(args []string) error {
 	flags := newUninstallFlags()
 	if err := flags.fs.Parse(args); err != nil {

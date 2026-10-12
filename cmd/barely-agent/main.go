@@ -1,6 +1,6 @@
 // Command barely-agent is the guest-side half of barely: the init (PID 1) of
-// the Linux VM that barelyvm boots, and the only thing the host process talks
-// to inside it. guest/build.sh installs it as /init in the initrd.
+// the Linux VM that barelyvm boots, and the guest end of every vsock port the
+// host process uses. guest/build.sh installs it as /init in the initrd.
 //
 // As PID 1 it boots the guest (kernel filesystems, read-only root with a
 // tmpfs overlay, data disk, shares, network, dockerd) and powers it off on

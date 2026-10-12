@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// The shell line pins docker to barely's socket through DOCKER_HOST, which
+// shellBlockStart and shellBlockEnd delimit barely's block in the profile so
+// install and remove can find it again. The shell line pins docker to barely's socket through DOCKER_HOST, which
 // overrides the Docker context. Nothing else on the machine (Docker
 // Desktop launching, another tool running `docker context use`) can then
 // move a terminal's docker commands off barely.

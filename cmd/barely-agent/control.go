@@ -13,8 +13,8 @@ import (
 	"barely/internal/proto"
 )
 
-// agent serves the guest side of the host ↔ agent control channel and the
-// Docker socket proxy.
+// agent serves the guest side of the host ↔ agent control channel, the
+// Docker socket proxy and the shell session streams.
 type agent struct {
 	version string
 }
@@ -68,8 +68,9 @@ func (c *controlConn) send(m proto.Message) error {
 	return proto.Write(c, m)
 }
 
-// handleControl serves one host connection until it drops or a request
-// fails; the host reconnects and says hello again.
+// handleControl serves one host connection until it drops or dispatch
+// returns an error. While the guest boots the host retries with a new
+// connection and a new hello (internal/control.DialAndHello).
 func (a *agent) handleControl(nc net.Conn) {
 	conn := &controlConn{Conn: nc}
 	defer conn.Close()
@@ -126,8 +127,9 @@ func (a *agent) dispatch(conn *controlConn, msg proto.Message) error {
 		return a.reply(conn, msg, helloReply, nil)
 	case proto.TypeShutdown:
 		stopDockerd()
-		// Reply before power-off: once the VM is gone the host can no longer
-		// read the ack that tells it the guest shut down cleanly.
+		// Reply before power-off: once the VM is gone nothing can be sent.
+		// The ack means dockerd has stopped; the data disk unmount and the
+		// power-off follow it.
 		if err := a.reply(conn, msg, struct{}{}, nil); err != nil {
 			return err
 		}

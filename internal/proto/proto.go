@@ -67,7 +67,8 @@ type Message struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-// Hello carries the host's protocol version; the agent rejects a mismatch.
+// Hello carries the host's protocol version. On a mismatch the agent still
+// answers with its own version, then drops the connection.
 type Hello struct {
 	Protocol int `json:"protocol"`
 }
@@ -135,6 +136,8 @@ type ShellExit struct {
 }
 
 // Write sends m as one frame: a 4-byte big-endian length, then the JSON body.
+// The two are separate writes, so writers sharing a connection must
+// serialize their calls or frames interleave.
 func Write(w io.Writer, m Message) error {
 	body, err := json.Marshal(m)
 	if err != nil {

@@ -54,7 +54,9 @@ type Network struct {
 }
 
 // New builds the virtual network. The subnet, gateway and guest address are
-// fixed: the guest image's DHCP lease and DeviceIP depend on them.
+// fixed so DeviceIP is known before the guest boots: the DHCP pool gives the
+// one guest its first free address (TestDHCPOffer pins .2), and
+// internal/portforward forwards to it.
 func New() (*Network, error) {
 	vn, err := virtualnetwork.New(&types.Configuration{
 		Subnet:            subnet,

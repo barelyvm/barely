@@ -14,8 +14,8 @@ import (
 const footprintSampleInterval = time.Second
 
 // sampleFootprint records the VM process's memory footprint on the Mac
-// into s.footHist until vm exits, so "status" and "top" can show the
-// current value next to its recent peak.
+// into s.footHist until vm exits, so "status" and "top" can show the peak
+// since boot and "top" can draw the history.
 func (s *Server) sampleFootprint(vm interface{ Pid() int }, done <-chan struct{}) {
 	ticker := time.NewTicker(footprintSampleInterval)
 	defer ticker.Stop()

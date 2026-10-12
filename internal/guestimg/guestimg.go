@@ -4,7 +4,8 @@
 // host's proto.Version is bootable, so an old image left behind by an
 // upgrade is skipped or reported with a rebuild hint rather than booted.
 //
-// Entry points: Find, Open.
+// Entry point: Find. Open checks one directory and has no caller outside
+// this package.
 //
 // Used by: internal/serve to boot, cmd/barely setup and doctor to check one exists.
 package guestimg

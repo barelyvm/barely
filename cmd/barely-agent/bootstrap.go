@@ -126,7 +126,7 @@ func mountKernelFS() error {
 
 // mountOverlayRoot mounts the read-only erofs root image under a tmpfs
 // overlay so the rest of boot (and dockerd) sees an ordinary writable root,
-// then moves into it. Nothing here needs an initramfs or switch_root: this
+// then moves into it. Nothing here needs switch_root or a second init: this
 // process's own text is already mapped, so it keeps running after chroot.
 func mountOverlayRoot() error {
 	for _, dir := range []string{"/mnt/root", "/mnt/rw", "/mnt/rw/upper", "/mnt/rw/work", "/newroot"} {
@@ -183,8 +183,8 @@ func mountDevPts() error {
 	return os.Symlink("pts/ptmx", "/dev/ptmx")
 }
 
-// mountDataDisk mounts vdb at /var/lib/docker, formatting it first if it has
-// no filesystem yet (first boot). No "discard" mount option: trims are
+// mountDataDisk mounts vdb at /var/lib/docker, formatting it if that mount
+// fails, which is taken to mean first boot. No "discard" mount option: trims are
 // explicit and lazy, triggered by the host over the control channel.
 func mountDataDisk() error {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
@@ -283,12 +283,13 @@ func waitDockerReady() {
 }
 
 // stopDockerd stops dockerd cleanly and syncs, for the control channel's
-// "shutdown".
+// "shutdown" and the shutdown key (powerkey.go).
 func stopDockerd() {
 	if dockerdCmd != nil && dockerdCmd.Process != nil {
 		_ = dockerdCmd.Process.Signal(unix.SIGTERM)
 		select {
 		case <-dockerdDone:
+		// barelyvm's orphanExitGrace budgets for this wait.
 		case <-time.After(10 * time.Second):
 			_ = dockerdCmd.Process.Kill()
 		}
@@ -301,6 +302,8 @@ func stopDockerd() {
 // remounted read-only, which also leaves it clean.
 func unmountDataDisk() {
 	err := unix.Unmount(dataDir, 0)
+	// EINVAL: nothing is mounted there (boot never got that far, or the
+	// other shutdown path already unmounted it).
 	if err == nil || err == unix.EINVAL {
 		return
 	}
@@ -309,8 +312,9 @@ func unmountDataDisk() {
 	}
 }
 
-// powerOff powers the guest off. libkrun's shutdown path
-// expects the VM to exit on its own once the agent replies to "shutdown".
+// powerOff powers the guest off, leaving the data disk clean first. libkrun
+// only asks for a shutdown (the shutdown key); the VM process exits when the
+// guest powers itself off.
 func powerOff() {
 	unmountDataDisk()
 	unix.Sync()

@@ -7,7 +7,8 @@
 // Entry points are New and Watcher.Run; the forwarding itself is delegated to
 // an Exposer (internal/netstack.Network).
 //
-// Used by: internal/serve, which runs one Watcher per VM boot.
+// Used by: internal/serve, which creates the one Watcher and runs it for each
+// VM boot.
 package portforward
 
 import (
@@ -110,7 +111,7 @@ type Watcher struct {
 
 	mu        sync.Mutex
 	byCtr     map[string][]binding
-	conflicts map[string]string // "protocol local" -> last error, for status
+	conflicts map[string]string // "protocol local" -> last bind error; see Conflicts
 }
 
 // New dials v2375Path for each request; deviceIP is the guest's address on
@@ -149,7 +150,8 @@ func (w *Watcher) Run(ctx context.Context) {
 }
 
 // Conflicts returns a copy of the last-seen bind error per "protocol
-// local". It has no production caller; only tests read it.
+// local". It has no production caller (status does not surface it); only
+// tests read it.
 func (w *Watcher) Conflicts() map[string]string {
 	w.mu.Lock()
 	defer w.mu.Unlock()

@@ -7,9 +7,9 @@ import (
 	"barely/internal/vmtypes"
 )
 
-// TestRoundTrip pins that Parse recovers what Encode wrote from inside a full
-// kernel command line, including a path with a space and a colon, since the
-// agent reads these words back out of /proc/cmdline. Run with go test.
+// TestRoundTrip pins that Parse recovers the shares Encode wrote from inside a
+// full kernel command line, including a path with a space and a colon, since
+// the agent reads these words back out of /proc/cmdline. Run with go test.
 func TestRoundTrip(t *testing.T) {
 	for _, args := range []Args{
 		{

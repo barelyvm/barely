@@ -16,8 +16,8 @@ import (
 )
 
 // EnsureSize makes sure path exists and is at least capBytes, sparsely. If
-// the file is already that size or larger (DiskMax never shrinks below the
-// current logical size), it's left alone.
+// the file is already that size or larger it's left alone, so lowering
+// disk_max by hand has no effect on an existing disk.
 func EnsureSize(path string, capBytes uint64) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {

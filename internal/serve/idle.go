@@ -48,7 +48,8 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 
 // checkIdle reports whether the server is currently idle (no clients, no
 // shell sessions, no running containers) and since when; it resets the
-// idle clock the moment any of those become non-zero.
+// idle clock when any of those is non-zero at the time of the call. Activity
+// that starts and ends between two calls is not seen.
 func (s *Server) checkIdle() (idle bool, since time.Time) {
 	busy := s.clients.Load() > 0 || s.shellSessions.Load() > 0
 	if !busy {
@@ -96,12 +97,13 @@ func (s *Server) idleIn() time.Duration {
 
 // runningContainers asks dockerd directly over the vsock passthrough path
 // (the same one every docker.sock client uses) for the number of running
-// containers. It returns (0, nil) when there's no VM up yet to ask —
-// trivially zero, not "unknown".
+// containers.
 func (s *Server) runningContainers() (int, error) {
 	s.mu.Lock()
 	ctl := s.ctl
 	s.mu.Unlock()
+	// No VM up, or dockerd not answering yet: nothing can be running, which
+	// is zero, not "unknown".
 	if ctl == nil || !ctl.Ready() {
 		return 0, nil
 	}

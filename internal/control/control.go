@@ -26,8 +26,9 @@ import (
 // this one: boot should fail with a clear error, not keep reconnecting.
 var ErrProtocolMismatch = errors.New("control: guest/host protocol mismatch")
 
-// Client is one connection to the agent. Call Run in a goroutine to read
-// unsolicited messages and replies; Request blocks for a reply.
+// Client is one connection to the agent. DialAndHello starts its Run
+// goroutine, which reads unsolicited messages and replies; Request blocks
+// for a reply.
 type Client struct {
 	conn    net.Conn
 	nextID  atomic.Uint64
@@ -198,8 +199,8 @@ func (c *Client) Request(typ string, payload any, reply any, timeout time.Durati
 }
 
 // Hello checks that the running agent speaks proto.Version. guestimg.Find
-// already filters images by manifest, so a mismatch here means the booted
-// guest is not the image the manifest described; failing at boot beats
+// already filters images by manifest, so a mismatch here means the image's
+// manifest disagrees with the agent built into it; failing at boot beats
 // misparsing messages later.
 func (c *Client) Hello(timeout time.Duration) (proto.HelloReply, error) {
 	var reply proto.HelloReply

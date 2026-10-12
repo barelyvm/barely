@@ -190,7 +190,7 @@ func watchResize(paths state.Paths, session int) {
 }
 
 // fetchShellExit calls GET /shell/{id}/exit, blocking until the session's
-// process has exited.
+// process has exited. It returns 1 if the exit code can't be fetched.
 func fetchShellExit(paths state.Paths, session int) int {
 	client := controlHTTPNoTimeout(paths)
 	resp, err := client.Get("http://barely/shell/" + strconv.Itoa(session) + "/exit")

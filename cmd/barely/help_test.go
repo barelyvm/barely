@@ -5,20 +5,21 @@ import (
 	"testing"
 )
 
-// dispatchCommands mirrors main's switch in main.go: every case there
-// (including the hidden ones) must have a commandSpec with help text,
-// and "barely help <cmd>" must work for it.
+// dispatchCommands mirrors main's switch in main.go, kept by hand: every
+// command case there (including the hidden ones, but not version) must have a
+// commandSpec with help text, and "barely help <cmd>" must work for it.
 var dispatchCommands = []string{
 	"serve", "man",
 	"setup", "uninstall", "start", "stop", "restart",
 	"status", "logs", "doctor", "config", "shell", "top",
 }
 
-// Help is generated from commandSpecs; these tests keep it in step with main's
-// dispatch switch. Run with "go test ./cmd/barely".
+// Help is generated from commandSpecs; these tests check that every command in
+// dispatchCommands has one. Run with "go test ./cmd/barely".
 
-// TestDispatchCommandsHaveHelp fails when a command is added to main without a
-// commandSpec, which would leave it out of help and the man page.
+// TestDispatchCommandsHaveHelp fails when a command in dispatchCommands has no
+// commandSpec, which would leave it out of help and the man page. A command
+// added to main's switch is only caught once it is added to the list too.
 func TestDispatchCommandsHaveHelp(t *testing.T) {
 	for _, name := range dispatchCommands {
 		c, ok := lookupCommand(name)

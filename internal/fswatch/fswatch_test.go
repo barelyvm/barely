@@ -30,8 +30,9 @@ func TestCollapseAndToGuest(t *testing.T) {
 	}
 }
 
-// TestWatcher drives real FSEvents: a create, an edit and a delete under a
-// watched temp dir must each reach send, with the guest-side path.
+// TestWatcher drives real FSEvents: a create, a rewrite of the same file and a
+// delete under a watched temp dir must each reach send, with the guest-side
+// path. The rewrite is asserted as "C" (see classify): no test pins an "M".
 func TestWatcher(t *testing.T) {
 	dir := t.TempDir()
 	got := make(chan []proto.FsEvent, 16)

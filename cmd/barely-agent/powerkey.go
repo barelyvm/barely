@@ -10,7 +10,7 @@ import (
 )
 
 // libkrun's shutdown eventfd (krun_get_shutdown_eventfd, which barelyvm
-// fires on SIGTERM or when the host process dies) presses KEY_RESTART on
+// fires on SIGTERM or when its parent-death pipe closes) presses KEY_RESTART on
 // its gpio-keys device. libkrun's own init handles that; ours has to.
 const (
 	evKey      = 1

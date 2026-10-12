@@ -16,8 +16,8 @@ import (
 // stateNotRunning is the CLI-side state for "no host process to ask".
 const stateNotRunning = "not running"
 
-// cliPaths resolves the state directory the same way "barely serve" does
-// (BARELY_HOME, else ~/.barely).
+// cliPaths resolves the state directory the way "barely serve" does when it
+// isn't given -state-dir (BARELY_HOME, else ~/.barely).
 func cliPaths() (state.Paths, error) {
 	dir, err := state.Dir()
 	if err != nil {
@@ -40,7 +40,8 @@ func controlHTTP(paths state.Paths) *http.Client {
 }
 
 // controlHTTPNoTimeout is for requests that legitimately block a long
-// time, like GET /shell/{id}/exit (waits for the guest process to exit).
+// time: POST /stop (answers once the VM is down), GET /shell/{id}/exit (waits
+// for the guest process to exit) and the /top stream.
 func controlHTTPNoTimeout(paths state.Paths) *http.Client {
 	sock := paths.ControlSock()
 	return &http.Client{

@@ -394,6 +394,7 @@ func installBinaries(binDir, from string) (string, error) {
 		lib:    filepath.Join(binDir, "libkrun.1.dylib"),
 	} {
 		if src == dst {
+			// Setup was run from the installed copy: nothing to copy.
 			continue
 		}
 		if err := copyReplace(src, dst); err != nil {
@@ -513,8 +514,8 @@ func setupDockerContext(name, dockerSock string, selectIt bool) error {
 	return nil
 }
 
-// setupSymlink points symlinkPath at dockerSock and reports whether it
-// did. Something already there that belongs to another tool is only
+// setupSymlink points symlinkPath at dockerSock and reports whether the link
+// is in place afterwards. Something already there that belongs to another tool is only
 // replaced after asking, and never when setup isn't interactive.
 func setupSymlink(ui *setupUI, symlinkPath, dockerSock string) (bool, error) {
 	existing := ""

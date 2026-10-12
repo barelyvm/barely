@@ -1,8 +1,8 @@
-// Package lock is the host process's single-instance guard: a second instance that
-// finds the lock already held exits 0, since another instance already owns
+// Package lock is the host process's single-instance guard: a second instance
+// that finds the lock already held exits 0, since another instance already owns
 // the VM. A hand-run "barely serve" can overlap one launchd started, and two
-// hosts must never boot the same data.img. Because the lock is a flock, the kernel drops it when the
-// owner dies, so a crash never leaves a stale lock.
+// hosts must never boot the same data.img. Because the lock is a flock, the
+// kernel drops it when the owner dies, so a crash never leaves a stale lock.
 //
 // Used by: internal/serve (Server.Run).
 package lock

@@ -163,7 +163,7 @@ type VMSpec struct {
 	DataCap     uint64 // set by serve but read by nothing
 	Shares      []Share
 	Vsock       []VsockPort
-	ConsoleLog  string // guest console output file; empty disables it
+	ConsoleLog  string // guest console output file; empty leaves libkrun's default, the VM process's own stdio
 }
 
 // Share is one host directory exposed to the guest over virtio-fs. Tag is the

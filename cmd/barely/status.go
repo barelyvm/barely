@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// runStatus implements "barely status" (GET /status):
-// lead with the VM's footprint now vs its recent
-// peak.
+// runStatus implements "barely status" (GET /status): the VM's memory
+// footprint now against its recent peak, then guest memory and disk. It
+// reports "not running" instead of failing when there is no host process.
 func runStatus(args []string) error {
 	paths, err := cliPaths()
 	if err != nil {

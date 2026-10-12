@@ -457,10 +457,10 @@ func (s *Server) handleShellResize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleLogs implements GET /logs?source=serve|vm|console&follow=bool,
-// reading straight from the log files so it works even when the host
-// process isn't running — except this handler only runs while it is;
-// cmd/barely's "logs" reads the files directly otherwise.
+// handleLogs implements GET /logs?source=serve|vm|console&follow=bool by
+// streaming the log file. Nothing in this repo calls it: "barely logs" reads
+// the same files directly, so that it works when the host process isn't
+// running.
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	path := s.logPath(r.URL.Query().Get("source"))
 	if path == "" {

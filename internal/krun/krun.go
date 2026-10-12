@@ -41,10 +41,10 @@ func check(what string, rc C.int32_t) error {
 
 func cstr(s string) *C.char { return C.CString(s) }
 
-// New creates a configuration context. SetLogLevel is called once per
-// process; callers only need one VM per process.
+// New creates a configuration context. barelyvm makes one per process.
 func New() (*VM, error) {
-	// Level 2 is Warn in libkrun.h.
+	// The log level is process-wide in libkrun, not per context. Level 2 is
+	// Warn in libkrun.h.
 	if err := check("set_log_level", C.krun_set_log_level(2)); err != nil {
 		return nil, err
 	}
@@ -60,6 +60,7 @@ func New() (*VM, error) {
 // of the socketpair handed to gvisor-tap-vsock (fd 3); pass -1
 // to skip networking.
 func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
+	// libkrun takes RAM in whole MiB; a remainder is dropped.
 	if err := check("set_vm_config", C.krun_set_vm_config(vm.ctx, C.uint8_t(spec.CPUs), C.uint32_t(spec.MemoryBytes/(1<<20)))); err != nil {
 		return err
 	}
@@ -67,6 +68,7 @@ func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
 	if spec.Initrd != "" {
 		initrd = cstr(spec.Initrd)
 	}
+	// Kernel format 0 is KRUN_KERNEL_FORMAT_RAW in libkrun.h.
 	if err := check("set_kernel", C.krun_set_kernel(vm.ctx, cstr(spec.Kernel), 0, initrd, cstr(spec.Cmdline))); err != nil {
 		return err
 	}
@@ -116,8 +118,10 @@ func (vm *VM) Configure(spec vmtypes.VMSpec, netFD int) error {
 		if err != nil {
 			return err
 		}
-		// NET_FLAG_VFKIT: the peer is gvisor-tap-vsock speaking the vfkit
-		// framing over a unixgram socketpair.
+		// The peer is gvisor-tap-vsock in vfkit mode on the other end of a
+		// unixgram socketpair. NET_FLAG_VFKIT makes libkrun send the vfkit
+		// magic only when it connects to a path; with an fd, as here, libkrun
+		// ignores it.
 		if err := check("add_net_unixgram", C.krun_add_net_unixgram(vm.ctx, nil, C.int(netFD), (*C.uint8_t)(unsafe.Pointer(&mac[0])), 0, C.NET_FLAG_VFKIT)); err != nil {
 			return err
 		}

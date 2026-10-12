@@ -191,10 +191,12 @@ func reclaimLoop() {
 	}
 }
 
-// settled reports whether the cache has stopped growing for a full
+// settled reports whether the cache has stopped growing across
 // settleWindow: the oldest sample in the window is old enough and the
 // cache hasn't grown by more than settleGrowth since.
 func settled(history []cacheSample, now time.Time) bool {
+	// reclaimLoop drops samples older than settleWindow, so the oldest one
+	// kept can be up to a reclaimInterval younger than the window.
 	if len(history) == 0 || now.Sub(history[0].at) < settleWindow-reclaimInterval {
 		return false
 	}

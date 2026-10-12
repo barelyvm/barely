@@ -5,7 +5,8 @@
 //
 // Entry points are Load, Default, Validate and EffectiveCPUs.
 //
-// Used by: cmd/barely (setup, config) and internal/serve (every boot).
+// Used by: cmd/barely (setup, config) and internal/serve (loaded at start and
+// on restart).
 package config
 
 import (
@@ -53,10 +54,10 @@ func Load(path string) (vmtypes.Config, error) {
 		}
 		return vmtypes.Config{}, err
 	}
-	// Decode onto the defaults so unset fields keep them, except CPUs and
-	// Shares/StartAtLogin, which toml overwrites directly since their zero
-	// values ("all cores", "no shares", false) are legitimate explicit
-	// settings as well as defaults.
+	// Decode onto the defaults so unset keys keep them. Any key present
+	// overwrites outright, including cpus = 0 ("all cores"), shares = []
+	// ("no shares") and start_at_login = false, which are legitimate explicit
+	// settings.
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return vmtypes.Config{}, fmt.Errorf("config: %s: %w", path, err)
 	}

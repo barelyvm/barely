@@ -49,8 +49,7 @@ func runTop(args []string) error {
 				history = ev.History
 			} else if ev.State == "running" {
 				history = append(history, footprint.Sample{At: time.Now(), Bytes: ev.VMFootprint})
-				// 120 samples (two minutes at 1s) keeps the sparkline within one
-				// terminal row.
+				// The sparkline shows the last 120 samples, two minutes at 1s.
 				if len(history) > 120 {
 					history = history[len(history)-120:]
 				}

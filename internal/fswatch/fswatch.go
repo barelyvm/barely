@@ -107,8 +107,6 @@ func (w *Watcher) stopLocked() {
 
 // run turns FSEvents batches into guest-path ops, flushing coalesce after
 // the first pending change; it exits when stop closes or the stream ends.
-// run turns FSEvents batches into guest-path ops, flushing coalesce after
-// the first pending change; it exits when stop closes or the stream ends.
 func (w *Watcher) run(es *fsevents.EventStream, roots []root, stop chan struct{}) {
 	pending := map[string]string{}
 	var flush <-chan time.Time

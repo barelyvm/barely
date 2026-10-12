@@ -56,18 +56,35 @@ type Paths struct {
 
 func New(root string) Paths { return Paths{Root: root} }
 
-func (p Paths) Config() string      { return filepath.Join(p.Root, "config.toml") }
-func (p Paths) BinDir() string      { return filepath.Join(p.Root, "bin") }
-func (p Paths) DockerSock() string  { return filepath.Join(p.Root, "docker.sock") }
+func (p Paths) Config() string { return filepath.Join(p.Root, "config.toml") }
+func (p Paths) BinDir() string { return filepath.Join(p.Root, "bin") }
+
+// DockerSock is the socket Docker clients connect to; launchd owns it and
+// starts the host process on the first connection.
+func (p Paths) DockerSock() string { return filepath.Join(p.Root, "docker.sock") }
+
+// ControlSock is the host process's HTTP control API, used by the barely CLI
+// (status, shell, restart, logs). Not a vsock end; the guest's control port is V1024.
 func (p Paths) ControlSock() string { return filepath.Join(p.Root, "control.sock") }
-func (p Paths) GuestDir() string    { return filepath.Join(p.Root, "guest") }
-func (p Paths) DataImage() string   { return filepath.Join(p.Root, "data.img") }
-func (p Paths) LogsDir() string     { return filepath.Join(p.Root, "logs") }
-func (p Paths) ServeLog() string    { return filepath.Join(p.Root, "logs", "serve.log") }
-func (p Paths) VMLog() string       { return filepath.Join(p.Root, "logs", "vm.log") }
-func (p Paths) ConsoleLog() string  { return filepath.Join(p.Root, "logs", "console.log") }
-func (p Paths) RunDir() string      { return filepath.Join(p.Root, "run") }
-func (p Paths) ServeLock() string   { return filepath.Join(p.Root, "run", "serve.lock") }
-func (p Paths) V1024() string       { return filepath.Join(p.Root, "run", "v1024") }
-func (p Paths) V1025() string       { return filepath.Join(p.Root, "run", "v1025") }
-func (p Paths) V2375() string       { return filepath.Join(p.Root, "run", "v2375") }
+
+func (p Paths) GuestDir() string { return filepath.Join(p.Root, "guest") }
+
+// DataImage is data.img, the sparse disk holding images, containers and volumes.
+func (p Paths) DataImage() string { return filepath.Join(p.Root, "data.img") }
+func (p Paths) LogsDir() string   { return filepath.Join(p.Root, "logs") }
+
+// ServeLog is the host process's log, also the launchd agent's stderr.
+func (p Paths) ServeLog() string { return filepath.Join(p.Root, "logs", "serve.log") }
+
+// VMLog is the VM process's stdout and stderr, as captured by the host process.
+func (p Paths) VMLog() string { return filepath.Join(p.Root, "logs", "vm.log") }
+
+// ConsoleLog is the guest's kernel and init console output.
+func (p Paths) ConsoleLog() string { return filepath.Join(p.Root, "logs", "console.log") }
+func (p Paths) RunDir() string     { return filepath.Join(p.Root, "run") }
+
+// ServeLock is the file internal/lock flocks to keep one host process per state directory.
+func (p Paths) ServeLock() string { return filepath.Join(p.Root, "run", "serve.lock") }
+func (p Paths) V1024() string     { return filepath.Join(p.Root, "run", "v1024") }
+func (p Paths) V1025() string     { return filepath.Join(p.Root, "run", "v1025") }
+func (p Paths) V2375() string     { return filepath.Join(p.Root, "run", "v2375") }

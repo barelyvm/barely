@@ -15,10 +15,11 @@ import (
 	"barely/internal/state"
 )
 
-// runDoctor implements "barely doctor":
-// reports where /var/run/docker.sock points, the active
-// Docker context, whether Docker Desktop's VM is running, and whether the
-// docker/compose/buildx CLIs are installed.
+// runDoctor implements "barely doctor": the checks for why docker isn't
+// reaching barely. It reports the Mac-side dependencies, where
+// /var/run/docker.sock points, the active Docker context, whether Docker
+// Desktop's VM is running, the launchd agent and the binary and helper it
+// runs, the installed guest image, and the VM state.
 func runDoctor(args []string) error {
 	dir, err := state.Dir()
 	if err != nil {

@@ -7,9 +7,11 @@ import (
 	"testing"
 )
 
-// TestDanglingPluginsAndCredentialHelper pins the Docker Desktop leftovers
-// doctor and setup warn about, and that a missing docker CLI ends checkDeps
-// early. Needs no docker install: PATH is stubbed out.
+// TestDanglingPluginsAndCredentialHelper pins that danglingPlugins finds the
+// plugin symlinks Docker Desktop leaves behind, and that a missing docker CLI
+// ends checkDeps early. The credsStore it writes is never reached (checkDeps
+// returns before the credential helper checks), so those are not pinned. Needs
+// no docker install: PATH is stubbed out.
 func TestDanglingPluginsAndCredentialHelper(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DOCKER_CONFIG", dir)

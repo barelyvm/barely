@@ -1,8 +1,9 @@
 // Package guestargs is what the host process tells the guest at boot, on the
 // kernel command line: the shared roots to mount and the Docker socket
-// aliases. The agent needs them before dockerd starts (a restarting
+// aliases. The agent needs the shares before dockerd starts (a restarting
 // container's bind mounts must work from its first start), which is before
-// the control channel could deliver them.
+// the control channel could deliver them; the aliases travel the same way
+// and are applied once dockerd answers.
 //
 // Entry points: Args.Encode on the host, Parse in the agent.
 //

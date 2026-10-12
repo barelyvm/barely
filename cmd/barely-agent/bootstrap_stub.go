@@ -4,9 +4,9 @@ package main
 
 import "barely/internal/proto"
 
-// mountKernelFS, bootstrap, watchShutdownKey, stopDockerd and powerOff are
-// guest-only (bootstrap.go, powerkey.go); this binary only ever runs as PID 1
-// under Linux, but these stubs let the package build and vet on the host platform too.
+// The functions stubbed here are guest-only (the linux-tagged files); the
+// agent only ships for Linux, but these stubs let the package build, vet and
+// run its platform-neutral tests on the host platform too.
 
 func setHostname() {}
 

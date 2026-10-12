@@ -110,9 +110,9 @@ func newLogsFlags() *logsFlags {
 	return f
 }
 
-// runLogs implements "barely logs": reads the files in logs/
-// directly when the host process isn't running, and the same files
-// either way, since the host's own GET /logs just reads them too.
+// runLogs implements "barely logs": it reads the files in logs/ directly,
+// never through the host process, so it still works when that is down (the
+// host's own GET /logs reads the same files).
 func runLogs(args []string) error {
 	flags := newLogsFlags()
 	if err := flags.fs.Parse(args); err != nil {
