@@ -1,4 +1,4 @@
-## Source for what this release contains
+## Source
 
 - **barely** is built from this repository at tag `v@VERSION@`.
 - **The guest kernel** is Linux @KERNEL@ with the patches in [`kernel/patches`](https://github.com/barelyvm/barely/tree/v@VERSION@/kernel/patches) and the configuration in [`kernel/config-arm64`](https://github.com/barelyvm/barely/blob/v@VERSION@/kernel/config-arm64). [`kernel/build.sh`](https://github.com/barelyvm/barely/blob/v@VERSION@/kernel/build.sh) builds it. The kernel is licensed under GPL-2.0.
