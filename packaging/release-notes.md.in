@@ -1,12 +1,3 @@
-## Install
-
-```sh
-brew install barelyvm/tap/barely
-barely setup
-```
-
-Apple Silicon, macOS 14 or later.
-
 ## Source for what this release contains
 
 - **barely** is built from this repository at tag `v@VERSION@`.
