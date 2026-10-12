@@ -19,9 +19,6 @@ const idleCheckInterval = 5 * time.Second
 // Config.IdleTimeout, it shuts the guest down and cancels cancel, which
 // Run treats exactly like an external SIGTERM (clean exit).
 func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
-	if s.cfg.IdleTimeout <= 0 {
-		return // 0 disables idle shutdown
-	}
 	ticker := time.NewTicker(idleCheckInterval)
 	defer ticker.Stop()
 	for {
@@ -29,11 +26,21 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Read every tick: "barely restart" can turn idle shutdown on or off.
+			timeout := s.idleTimeout()
+			if timeout <= 0 {
+				// Disabled. Forget any idle time so turning it back on starts
+				// the clock from then.
+				s.mu.Lock()
+				s.idleSince = time.Time{}
+				s.mu.Unlock()
+				continue
+			}
 			idle, since := s.checkIdle()
 			if !idle {
 				continue
 			}
-			if elapsed := time.Since(since); elapsed >= time.Duration(s.cfg.IdleTimeout) {
+			if elapsed := time.Since(since); elapsed >= timeout {
 				log.Printf("serve: idle for %s, shutting down", elapsed.Round(time.Second))
 				// Set before the shutdown, as /stop does: a client that connects
 				// while the VM is going down must not boot one in this process.
@@ -49,6 +56,14 @@ func (s *Server) idleLoop(ctx context.Context, cancel context.CancelFunc) {
 			}
 		}
 	}
+}
+
+// idleTimeout is the configured idle_timeout; zero or less disables idle
+// shutdown.
+func (s *Server) idleTimeout() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return time.Duration(s.cfg.IdleTimeout)
 }
 
 // checkIdle reports whether the server is currently idle (no clients, no
@@ -84,16 +99,14 @@ func (s *Server) checkIdle() (idle bool, since time.Time) {
 // idle from now, for "status"'s idle_in. Zero if idle shutdown is
 // disabled or the server isn't currently idle.
 func (s *Server) idleIn() time.Duration {
-	if s.cfg.IdleTimeout <= 0 {
-		return 0
-	}
 	s.mu.Lock()
+	timeout := time.Duration(s.cfg.IdleTimeout)
 	since := s.idleSince
 	s.mu.Unlock()
-	if since.IsZero() {
+	if timeout <= 0 || since.IsZero() {
 		return 0
 	}
-	remaining := time.Duration(s.cfg.IdleTimeout) - time.Since(since)
+	remaining := timeout - time.Since(since)
 	if remaining < 0 {
 		return 0
 	}
