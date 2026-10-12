@@ -31,9 +31,9 @@ In the guest, the agent starts its vsock servers before anything else, so a boot
 Every path ends in `Server.shutdown`: a last fstrim, a `shutdown` request to the agent, then stopping the VM process. The agent stops dockerd, acknowledges, unmounts the data disk and powers off.
 
 - **`barely stop`**: answers only once the VM is down, then the host process exits. From the moment it is asked, the process boots nothing more; a client that arrives in that window is told to retry.
-- **Idle**: with no clients and no running containers for the idle timeout, the host shuts the VM down and exits. launchd starts it again on the next connection.
+- **Idle**: with no clients and no running containers for the idle timeout, the host shuts the VM down and exits, refusing new boots in the same way as stop. launchd starts it again on the next connection.
 - **`barely restart`**: shutdown, reload the config, boot again in the same process.
-- **VM crash**: the host process stays up and the next client boots a new VM. Three crashes in a minute stop the retries.
+- **VM crash or failed boot**: the host process stays up and the next client boots a new VM. Three in a minute stop the retries. A guest that cannot boot logs why and powers off, and the host passes that reason to the docker client.
 
 The host holds the write end of a pipe the VM process reads. If the host dies, the VM process sees it close and shuts the guest down, so a VM is never orphaned.
 

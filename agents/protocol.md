@@ -33,7 +33,7 @@ Each frame is a length prefix and a JSON message with a type, an id, an optional
 
 ## Before the control channel exists
 
-The only way to tell the guest anything before `hello` is the kernel command line. `internal/guestargs` encodes the shares to mount and the Docker socket paths to alias; the agent parses them from `/proc/cmdline`. Use this only for what the agent needs during boot.
+The only way to tell the guest anything before `hello` is the kernel command line. `internal/guestargs` encodes the shares to mount, the Docker socket paths to alias and the data disk's path on the Mac; the agent parses them from `/proc/cmdline`. Use this only for what the agent needs during boot.
 
 ## Versioning
 
