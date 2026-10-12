@@ -14,7 +14,7 @@ import (
 )
 
 // Disk order: vda is the read-only root
-// image, vdb is the sparse data disk the host re-extends before every boot.
+// image, vdb is the sparse data disk (data.img).
 const (
 	rootDisk = "/dev/vda"
 	dataDisk = "/dev/vdb"
@@ -98,14 +98,14 @@ func aliasDockerSocket() {
 	}
 }
 
-// mountKernelFS mounts /dev, /proc and /sys. It runs before the agent's
-// vsock listeners, which need /dev/vsock, and before the rest of bootstrap.
 func setHostname() {
 	if err := unix.Sethostname([]byte("barely")); err != nil {
 		log.Printf("bootstrap: sethostname: %v", err)
 	}
 }
 
+// mountKernelFS mounts /dev, /proc and /sys. It runs before the agent's
+// vsock listeners, which need /dev/vsock, and before the rest of bootstrap.
 func mountKernelFS() error {
 	for _, m := range []struct{ source, target, fstype string }{
 		{"devtmpfs", "/dev", "devtmpfs"},
@@ -184,9 +184,8 @@ func mountDevPts() error {
 }
 
 // mountDataDisk mounts vdb at /var/lib/docker, formatting it first if it has
-// no filesystem yet (first boot, or a disk the host just re-extended past a
-// truncate-on-discard). No "discard" mount option: trims are explicit and
-// lazy, triggered by the host over the control channel.
+// no filesystem yet (first boot). No "discard" mount option: trims are
+// explicit and lazy, triggered by the host over the control channel.
 func mountDataDisk() error {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return err
@@ -196,21 +195,8 @@ func mountDataDisk() error {
 		growDataDisk()
 		return nil
 	}
-	// -E nodiscard: mke2fs's default format pass discards the whole device,
-	// which hits libkrun's truncate-on-discard bug on the last range and
-	// shrinks data.img before it's ever been used. No discard at all until
-	// the explicit, lazy fstrim.
-	//
-	// This doesn't fully close the bug: even with nodiscard, a fresh format
-	// still loses 64 KiB off the tail (measured; down from 320 KiB without
-	// nodiscard), from something other than mke2fs's own discard pass —
-	// tried lazy_itable_init=0/lazy_journal_init=0 too (mke2fs otherwise
-	// defers zeroing those to a post-mount kernel thread via BLKZEROOUT,
-	// another path to the same bug) and it made no difference on a truly
-	// fresh disk, so it's left out here rather than paying for eager
-	// zeroing on a 100 GiB DiskMax for nothing. The rest is libkrun's
-	// truncate-on-discard bug itself (build-host) and
-	// the host's before-every-boot re-extend.
+	// -E nodiscard: skip mke2fs's whole-device discard pass. No discard at
+	// all until the explicit, lazy fstrim.
 	if out, mkErr := exec.Command("mkfs.ext4", "-F", "-q", "-E", "nodiscard", dataDisk).CombinedOutput(); mkErr != nil {
 		return fmt.Errorf("mkfs.ext4: %w: %s", mkErr, out)
 	}

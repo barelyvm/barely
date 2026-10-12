@@ -1,4 +1,4 @@
-// Package vmproc starts and supervises the VM process ("barely vm").
+// Package vmproc starts and supervises the VM process ("barelyvm run").
 // libkrun's krun_start_enter takes over the
 // process that calls it and exit()s it when the guest shuts down, so the
 // VM runs in a child the host process supervises rather than inside the

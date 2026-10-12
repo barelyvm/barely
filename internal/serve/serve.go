@@ -90,7 +90,7 @@ const (
 )
 
 // New loads config and prepares the host process. barelyPath is the path to
-// this binary, re-exec'd as "barely vm" for the VM process.
+// this binary; the barelyvm helper is looked up next to it.
 func New(barelyPath, stateDir string) (*Server, error) {
 	paths := state.New(stateDir)
 	cfg, err := config.Load(paths.Config())

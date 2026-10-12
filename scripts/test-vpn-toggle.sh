@@ -1,5 +1,5 @@
 #!/bin/sh
-# Phase C/D: a container does DNS + HTTPS every 2 s while the VPN is toggled.
+# A container does DNS + HTTPS every 2 s while the VPN is toggled.
 # VPN_ON and VPN_OFF are the commands that connect and disconnect it.
 set -u
 . "$(dirname "$0")/barely-target.sh"

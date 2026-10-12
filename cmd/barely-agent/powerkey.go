@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-// libkrun's shutdown eventfd (krun_get_shutdown_eventfd, which "barely vm"
+// libkrun's shutdown eventfd (krun_get_shutdown_eventfd, which barelyvm
 // fires on SIGTERM or when the host process dies) presses KEY_RESTART on
 // its gpio-keys device. libkrun's own init handles that; ours has to.
 const (

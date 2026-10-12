@@ -36,7 +36,7 @@ type DiskStatus struct {
 
 // StatusResponse is GET /status's body.
 type StatusResponse struct {
-	State                  string           `json:"state"` // "running" or "booting"
+	State                  string           `json:"state"` // "running", "booting" or "stopped"
 	Uptime                 time.Duration    `json:"uptime"`
 	VMFootprint            uint64           `json:"vm_footprint"`
 	VMFootprintPeak        FootprintPeak    `json:"vm_footprint_peak"`

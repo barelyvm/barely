@@ -41,7 +41,7 @@ endif
 	codesign -s - -f $(OUT)/libkrun.1.dylib
 	@echo "libkrun: built $$(git -C $(LIBKRUN_DIR) rev-parse HEAD) from $(LIBKRUN_DIR); libkrun.env pins $(LIBKRUN_COMMIT)"
 
-# Builds the barely binary (host process, VM process and CLI).
+# Builds the barely binary (host process and CLI).
 # barely needs no signing: only barelyvm needs the hypervisor entitlement.
 barely:
 	mkdir -p $(OUT)

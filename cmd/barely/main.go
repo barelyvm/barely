@@ -1,6 +1,6 @@
 // Command barely is the elastic Docker VM: run as a user it's the CLI, run by
-// launchd as "barely serve" it's the host process, and run by "barely serve" as
-// "barely vm" it's the VM process.
+// launchd as "barely serve" it's the host process, which launches the separate
+// barelyvm helper as the VM process.
 package main
 
 import (

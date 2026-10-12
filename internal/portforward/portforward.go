@@ -137,7 +137,7 @@ func (w *Watcher) Run(ctx context.Context) {
 }
 
 // Conflicts returns a copy of the last-seen bind error per "protocol
-// local", for barely status to surface.
+// local".
 func (w *Watcher) Conflicts() map[string]string {
 	w.mu.Lock()
 	defer w.mu.Unlock()

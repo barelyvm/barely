@@ -1,5 +1,5 @@
 #!/bin/sh
-# Live acceptance for file-change events. Needs DOCKER_HOST
+# Live test for file-change events. Needs DOCKER_HOST
 # pointing at a running barely and a writable project dir under a shared root.
 set -u
 . "$(dirname "$0")/barely-target.sh"

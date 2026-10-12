@@ -43,8 +43,9 @@ var commandSpecs = []commandSpec{
 		group:    "Lifecycle",
 		synopsis: "barely uninstall [flags]",
 		short:    "Reverse setup",
-		long: "Removes the launchd agent, the Docker context, and the /var/run/docker.sock symlink if it's " +
-			"still ours. The state directory (~/.barely: images, volumes, logs) is left in place unless -purge is given.",
+		long: "Removes the launchd agent, the installed binaries in ~/.barely/bin, the DOCKER_HOST line in your shell " +
+			"profile, the Docker context, and the /var/run/docker.sock symlink if it's still ours. The rest of " +
+			"~/.barely (images, volumes, logs, config) is left in place unless -purge is given.",
 		examples: []string{"barely uninstall", "barely uninstall -purge"},
 		flags:    func() *flag.FlagSet { return newUninstallFlags().fs },
 	},

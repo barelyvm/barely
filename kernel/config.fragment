@@ -4,7 +4,7 @@
 CONFIG_LOCALVERSION="-barely"
 # CONFIG_LOCALVERSION_AUTO is not set
 
-# Boot and console for Virtualization.framework
+# Boot and console under libkrun
 CONFIG_BLK_DEV_INITRD=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
@@ -133,7 +133,7 @@ CONFIG_INET_ESP=y
 # Our additions
 CONFIG_VIRTIO_FS_FSEVENT=y
 
-# Trim: VZ is a generic virt machine, so no SoC platforms or physical-device
+# Trim: libkrun presents a generic virt machine, so no SoC platforms or physical-device
 # subsystems. defconfig builds these as modules, which become built-in once
 # modules are disabled.
 # CONFIG_ARCH_ACTIONS is not set

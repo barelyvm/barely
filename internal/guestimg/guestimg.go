@@ -1,6 +1,6 @@
 // Package guestimg finds the guest image to boot: ~/.barely/guest/<version>/.
 // `make guest` installs new
-// versions there; old ones are pruned after a successful boot.
+// versions there.
 package guestimg
 
 import (
@@ -25,7 +25,7 @@ func (img Image) RootImage() string { return filepath.Join(img.Dir, "root.img") 
 
 // Find returns the newest guest image under guestDir whose AgentProtocol
 // matches wantProtocol. Versions are compared lexically on their directory
-// name, which is fine for the "YYYY.MM.N" scheme the manifest documents.
+// name, which is fine for the YYYY.MM.DD.HHMM versions `make guest` stamps.
 func Find(guestDir string, wantProtocol int) (Image, error) {
 	entries, err := os.ReadDir(guestDir)
 	if err != nil {

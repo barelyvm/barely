@@ -1,5 +1,5 @@
 // Package krun wraps the libkrun C API (barely's fork) used
-// by the VM process ("barely vm") to boot the guest.
+// by the VM process (barelyvm) to boot the guest.
 package krun
 
 /*

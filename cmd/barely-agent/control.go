@@ -36,8 +36,7 @@ func (a *agent) run() error {
 }
 
 // serveControl accepts the host's long-lived connection to vsock port 1024
-// and speaks hello/ready/shutdown. Only a subset of the control
-// channel is implemented here; other message types reply with an error.
+// and dispatches each request; unknown message types reply with an error.
 func (a *agent) serveControl() error {
 	ln, err := vsock.Listen(proto.PortControl, nil)
 	if err != nil {

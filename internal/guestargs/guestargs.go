@@ -28,7 +28,7 @@ type Args struct {
 }
 
 // Encode returns the parameters to append to the kernel command line. Paths
-// and reasons are escaped so they're single space-free words.
+// are escaped so they're single space-free words.
 func (a Args) Encode() string {
 	var words []string
 	for _, s := range a.Shares {

@@ -1,7 +1,7 @@
 From: Louis Laugesen <louis@lgsn.dev>
 Subject: [PATCH] fuse: virtio-fs: device for host-driven file-change events
 
-Apple's virtio-fs server never sends FUSE notifications, so when a file
+libkrun's virtio-fs server never sends FUSE notifications, so when a file
 changes on the host the guest's dcache, attributes and page cache go stale
 and inotify watchers in the guest never fire.
 
@@ -61,7 +61,7 @@ diff -urN pa/fs/fuse/fsevent.c pb/fs/fuse/fsevent.c
 +/*
 + * Host-driven file-change events for virtio-fs.
 + *
-+ * Apple's virtio-fs server never sends FUSE notifications, so the guest's
++ * libkrun's virtio-fs server never sends FUSE notifications, so the guest's
 + * dcache, attributes and page cache go stale when files change on the host and
 + * inotify watchers never fire. A guest agent that learns about host changes
 + * writes them here; we invalidate what the guest has cached and raise the

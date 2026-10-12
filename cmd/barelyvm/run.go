@@ -16,8 +16,7 @@ import (
 	"barely/internal/vmtypes"
 )
 
-// netFD and parentDeathFD are the fd numbers the host process hands "barely
-// vm".
+// netFD and parentDeathFD are the fd numbers the host process hands barelyvm.
 const (
 	netFD         = 3
 	parentDeathFD = 4
@@ -32,7 +31,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
-// runVM implements the "barely vm" subcommand: the VM process. It reads a
+// runVM implements "barelyvm run": the VM process. It reads a
 // VMSpec on stdin, validates it (libkrun aborts the whole process on a
 // device failure, so everything checkable is checked first), configures
 // libkrun and enters the guest.

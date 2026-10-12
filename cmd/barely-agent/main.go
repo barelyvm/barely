@@ -1,7 +1,7 @@
 // Command barely-agent is the guest-side half of barely.
 // It runs inside the Linux VM:
-// when it's PID 1 it finishes booting the guest (mounts, network, dockerd),
-// otherwise it's launched by that bootstrap step as a child. Either way it
+// when it's PID 1 it finishes booting the guest (mounts, network, dockerd);
+// run any other way (a local test) it skips that. Either way it
 // then serves the control channel on vsock 1024 and proxies vsock 2375 to
 // dockerd's socket.
 package main

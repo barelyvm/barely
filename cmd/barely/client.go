@@ -26,8 +26,7 @@ func cliPaths() (state.Paths, error) {
 	return state.New(dir), nil
 }
 
-// controlHTTP returns an http.Client that dials control.sock, and the base
-// URL to use with it.
+// controlHTTP returns an http.Client that dials control.sock.
 func controlHTTP(paths state.Paths) *http.Client {
 	sock := paths.ControlSock()
 	return &http.Client{

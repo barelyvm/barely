@@ -28,8 +28,7 @@ func Default() vmtypes.Config {
 }
 
 func defaultMemoryMax() uint64 {
-	// physical_memory sysctl isn't worth a cgo call here; runtime.NumCPU
-	// and a conservative per-core estimate would be wrong, so shell out.
+	// Half of hw.memsize; 4 GiB if the sysctl fails.
 	out, err := sysctlPhysMem()
 	if err != nil || out == 0 {
 		return 4 << 30

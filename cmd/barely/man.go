@@ -44,7 +44,7 @@ func runMan(args []string) error {
 	return os.WriteFile(*flags.out, []byte(page), 0o644)
 }
 
-// renderManPage builds an barely(1) roff page from commandSpecs, skipping
+// renderManPage builds a barely(1) roff page from commandSpecs, skipping
 // hidden (internal-only) commands.
 func renderManPage() string {
 	var b bytes.Buffer

@@ -12,7 +12,7 @@ import (
 
 const (
 	fseventDevice = "/dev/barely-fsevent"
-	// fseventMaxWrite matches the kernel device's per-write limit.
+	// fseventMaxWrite stays under the kernel device's 64 KiB per-write limit.
 	fseventMaxWrite = 60 << 10
 )
 

@@ -30,7 +30,7 @@ func newUninstallFlags() *uninstallFlags {
 }
 
 // runUninstall implements "barely uninstall":
-// reverses all of setup and offers to delete the state directory.
+// reverses all of setup and, with -purge, deletes the state directory.
 func runUninstall(args []string) error {
 	flags := newUninstallFlags()
 	if err := flags.fs.Parse(args); err != nil {

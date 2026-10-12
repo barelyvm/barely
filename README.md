@@ -21,20 +21,20 @@ that talk to the Docker socket work unchanged.
 ## Install from source
 
 Requirements: an Apple Silicon Mac on macOS 14+, Xcode command line tools,
-[Homebrew](https://brew.sh), a Rust toolchain via [rustup](https://rustup.rs),
+[Homebrew](https://brew.sh), Go, a Rust toolchain via [rustup](https://rustup.rs),
 and Docker (any engine) to build the guest image.
 
 ```sh
-brew install rustup lld docker docker-compose docker-buildx
+brew install go rustup lld xz docker docker-compose docker-buildx
 rustup-init -y
-brew install --cask docker  # or: brew install docker-desktop
+brew install --cask docker  # or: brew install docker-desktop; start it before make kernel
 make libkrun   # fetches and builds the libkrun fork pinned in libkrun.env
 make barelyvm    # builds and ad-hoc signs the VM helper
 make kernel    # builds the guest kernel
 make guest     # builds the guest image (kernel, Alpine root, barely-agent)
 ```
 
-Only `barelyvm` touches Apple's virtualization APIs, so it's the only binary
+Only `barelyvm` touches Apple's Hypervisor framework, so it's the only binary
 that needs signing; `make barelyvm` ad-hoc signs it with the
 `com.apple.security.hypervisor`
 entitlement (`barely.entitlements`). No Apple developer account is needed.
@@ -42,6 +42,7 @@ entitlement (`barely.entitlements`). No Apple developer account is needed.
 command, setup included. `barely setup` installs `barely`, `barelyvm` and
 `libkrun.1.dylib` into `~/.barely/bin` and points launchd there, so rebuilding
 in the repo never touches a running install; re-run `barely setup` to update it.
+Add `~/.barely/bin` to your `PATH` to run `barely` from anywhere.
 
 ## Setup
 
@@ -86,7 +87,7 @@ everything again.
 | `barely logs -source serve\|vm\|console [-follow]` | Host process log, VM process log, or guest console |
 | `barely doctor` | `/var/run/docker.sock` target, active Docker context, Docker Desktop VM status, CLI checks |
 | `barely config [edit]` | Print or edit `~/.barely/config.toml` |
-| `barely uninstall [-purge]` | Reverses `setup`; `-purge` also deletes `~/.barely` |
+| `barely uninstall [-purge]` | Reverses `setup` and removes `~/.barely/bin`; `-purge` also deletes the rest of `~/.barely` |
 
 Run `barely help` for the full list (grouped, with pointers to `barely help <command>`), or `barely help <command>` / `barely <command> -h` for a command's flags and examples.
 
@@ -110,8 +111,8 @@ Changes apply on the next VM boot, or immediately with `barely restart`.
 ## Uninstall
 
 ```sh
-barely uninstall           # reverses setup; leaves ~/.barely in place
-barely uninstall -purge    # also deletes ~/.barely (images, volumes, logs)
+barely uninstall           # reverses setup, removes ~/.barely/bin; keeps images, volumes, logs, config
+barely uninstall -purge    # also deletes the rest of ~/.barely
 ```
 
 ## Running alongside Docker Desktop

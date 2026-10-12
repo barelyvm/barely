@@ -1,6 +1,5 @@
-// Package diskimg manages the sparse data disk (data.img): libkrun truncates
-// the file when a discard reaches its end, so it must be re-extended to
-// the configured cap before every boot.
+// Package diskimg manages the sparse data disk (data.img): it is created at
+// the configured cap and extended to it before every boot.
 package diskimg
 
 import (
