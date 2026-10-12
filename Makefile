@@ -145,15 +145,22 @@ formula:
 # it. Publishing the draft on GitHub creates the tag, on the commit the
 # tarball was built from.
 push-release:
-	test -f $(DIST)/$(RELEASE).tar.gz.sha256
-	test -f $(DIST)/$(RELEASE).commit
-	sed -e 's|@VERSION@|$(VERSION)|g' -e 's|@KERNEL@|$(KERNEL_VERSION)|g' \
+	@test -f $(DIST)/$(RELEASE).tar.gz.sha256
+	@test -f $(DIST)/$(RELEASE).commit
+	@sed -e 's|@VERSION@|$(VERSION)|g' -e 's|@KERNEL@|$(KERNEL_VERSION)|g' \
 		packaging/release-notes.md.in > $(DIST)/release-notes.md
-	gh release create v$(VERSION) --repo $(GITHUB_REPO) --target $$(cat $(DIST)/$(RELEASE).commit) --draft \
+	@gh release create v$(VERSION) --repo $(GITHUB_REPO) --target $$(cat $(DIST)/$(RELEASE).commit) --draft \
 		--title "barely $(VERSION)" --notes-file $(DIST)/release-notes.md --generate-notes \
-		$(DIST)/$(RELEASE).tar.gz $(DIST)/$(RELEASE).tar.gz.sha256
-	$(MAKE) formula VERSION=$(VERSION) \
+		$(DIST)/$(RELEASE).tar.gz $(DIST)/$(RELEASE).tar.gz.sha256 > $(DIST)/release-url
+	@$(MAKE) -s formula VERSION=$(VERSION) \
 		RELEASE_URL=https://github.com/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(RELEASE).tar.gz
+	@echo
+	@echo "Draft release v$(VERSION):"
+	@echo
+	@echo "    $$(cat $(DIST)/release-url)"
+	@echo
+	@echo "Publish it there, then run: make push-formula VERSION=$(VERSION)"
+	@echo
 
 # Commits dist/barely.rb to the Homebrew tap and pushes it. Run after the
 # draft release is published: the formula's URL does not exist before then.
