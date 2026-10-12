@@ -1,8 +1,6 @@
 #!/bin/zsh
 # Reproduces the stop-then-immediate-docker sequence on a fresh disk and
-# reports whether the data disk is corrupt on the following boot. Before
-# shutdown held the boot lock this corrupted the disk 3 times out of 3 (ext4
-# errors 8).
+# reports whether the data disk is corrupt on the following boot.
 #
 # Needs a throwaway instance at /tmp/barely-t first:
 #   mkdir -p /tmp/barely-t/bin && cp out/bin/barely out/bin/barelyvm out/bin/libkrun.1.dylib /tmp/barely-t/bin/

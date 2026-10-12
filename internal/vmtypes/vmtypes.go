@@ -144,9 +144,9 @@ type GuestManifest struct {
 // GuestMAC and GatewayMAC are the fixed MAC addresses of, respectively, the
 // guest's virtio-net device (krun_add_net_unixgram, internal/krun) and
 // gvisor-tap-vsock's virtual gateway (internal/netstack) on the private
-// network between them. They must differ: a shared MAC on both ends of the
-// same L2 segment broke DHCP (the guest's request and the
-// gateway's own traffic looked like they came from the same address).
+// network between them. They must differ: with one MAC on both ends of the
+// segment, the guest's DHCP request and the gateway's own traffic appear to
+// come from the same address.
 const (
 	GuestMAC   = "5a:94:ef:e4:0c:ee"
 	GatewayMAC = "5a:94:ef:e4:0c:ed"
