@@ -28,8 +28,7 @@ RELEASE_SOURCE ?= https://github.com/$(GITHUB_REPO).git
 RELEASE_REF ?= main
 # A local clone of github.com/barelyvm/homebrew-tap, for push-formula.
 TAP_DIR ?= ../homebrew-tap
-# Where the formula downloads the tarball from. The default points at the
-# local build so the formula can be tried before anything is uploaded.
+# Where the formula downloads the tarball from; by default, the local build.
 RELEASE_URL ?= file://$(CURDIR)/$(DIST)/$(RELEASE).tar.gz
 
 kernel kernel-config kernel-clean:
@@ -133,8 +132,7 @@ pack: libkrun barely barelyvm guest-image
 	cd $(DIST) && shasum -a 256 $(RELEASE).tar.gz > $(RELEASE).tar.gz.sha256
 
 # Writes dist/barely.rb, the Homebrew formula for the tarball `make release`
-# built with the same VERSION. Local only. RELEASE_URL is where the formula
-# will download the tarball from.
+# built with the same VERSION.
 formula:
 	test -f $(DIST)/$(RELEASE).tar.gz.sha256
 	sed -e 's|@URL@|$(RELEASE_URL)|' -e 's|@VERSION@|$(VERSION)|' \
@@ -157,10 +155,8 @@ push-release:
 	$(MAKE) formula VERSION=$(VERSION) \
 		RELEASE_URL=https://github.com/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(RELEASE).tar.gz
 
-# Commits dist/barely.rb to the Homebrew tap and pushes it, which is what makes
-# `brew install barelyvm/tap/barely` install this version. A separate step from
-# push-release because it must come after the draft is published: until then
-# the formula's URL does not exist, and a pushed formula would break installs.
+# Commits dist/barely.rb to the Homebrew tap and pushes it. Run after the
+# draft release is published: the formula's URL does not exist before then.
 push-formula:
 	@test -d $(TAP_DIR)/.git || { echo "no clone of the tap at $(TAP_DIR); set TAP_DIR"; exit 1; }
 	@grep -q 'releases/download/v$(VERSION)/' $(DIST)/barely.rb || { echo "$(DIST)/barely.rb is not for the v$(VERSION) GitHub release; run make push-release VERSION=$(VERSION)"; exit 1; }
